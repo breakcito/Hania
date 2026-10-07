@@ -98,7 +98,7 @@ export const DespatchesListPage: React.FC = () => {
       <Group justify="space-between" mb="lg">
         <div>
           <Title order={2} style={{ color: "#0F172A", fontWeight: 700 }}>
-            Guías de Remisión Electrónica (GRE)
+            Guías de Remisión Electrónica
           </Title>
           <Text size="sm" c="dimmed">
             Control de traslados de carbón, minerales y carga pesada • Empresa: <b>{activeCompany?.business_name}</b>

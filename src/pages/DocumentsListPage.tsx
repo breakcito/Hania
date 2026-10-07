@@ -66,10 +66,14 @@ export const DocumentsListPage: React.FC = () => {
       if (status) q.set("status", status);
 
       const token = localStorage.getItem("hania_token");
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
-      const res = await fetch(`${baseUrl}/reports/sales-excel?${q.toString()}`, {
-        headers: { Authorization: token ? `Bearer ${token}` : "" },
-      });
+      const baseUrl =
+        import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+      const res = await fetch(
+        `${baseUrl}/reports/sales-excel?${q.toString()}`,
+        {
+          headers: { Authorization: token ? `Bearer ${token}` : "" },
+        },
+      );
       if (!res.ok) throw new Error("Fallo al generar el reporte en Excel");
 
       const blob = await res.blob();
@@ -84,7 +88,8 @@ export const DocumentsListPage: React.FC = () => {
 
       notifications.show({
         title: "Excel Descargado",
-        message: "El Registro de Ventas ha sido descargado en formato oficial .xlsx",
+        message:
+          "El Registro de Ventas ha sido descargado en formato oficial .xlsx",
         color: "teal",
       });
     } catch (err: any) {
@@ -128,7 +133,11 @@ export const DocumentsListPage: React.FC = () => {
 
   const handleVoid = async () => {
     if (!voidDoc || voidReason.trim().length < 5) {
-      notifications.show({ title: "Atención", message: "Ingrese un motivo de anulación detallado", color: "orange" });
+      notifications.show({
+        title: "Atención",
+        message: "Ingrese un motivo de anulación detallado",
+        color: "orange",
+      });
       return;
     }
 
@@ -147,7 +156,11 @@ export const DocumentsListPage: React.FC = () => {
       setVoidReason("");
       loadDocs();
     } catch (err: any) {
-      notifications.show({ title: "Error", message: err.message, color: "red" });
+      notifications.show({
+        title: "Error",
+        message: err.message,
+        color: "red",
+      });
     } finally {
       setIsVoiding(false);
     }
@@ -166,7 +179,11 @@ export const DocumentsListPage: React.FC = () => {
       setDocToDelete(null);
       loadDocs();
     } catch (err: any) {
-      notifications.show({ title: "Error", message: err.message, color: "red" });
+      notifications.show({
+        title: "Error",
+        message: err.message,
+        color: "red",
+      });
     } finally {
       setIsDeletingDoc(false);
     }
@@ -199,7 +216,7 @@ export const DocumentsListPage: React.FC = () => {
             onClick={handleDownloadExcel}
             loading={isDownloadingExcel}
           >
-            Exportar Excel (RVIE)
+            Exportar Excel
           </Button>
 
           <Button
@@ -215,7 +232,13 @@ export const DocumentsListPage: React.FC = () => {
       </Group>
 
       {/* Barra de Filtros y Búsqueda */}
-      <Paper withBorder p="md" radius="md" mb="md" style={{ backgroundColor: "#FFFFFF" }}>
+      <Paper
+        withBorder
+        p="md"
+        radius="md"
+        mb="md"
+        style={{ backgroundColor: "#FFFFFF" }}
+      >
         <form onSubmit={handleSearchSubmit}>
           <Group justify="space-between">
             <Group style={{ flex: 1 }}>
@@ -261,7 +284,11 @@ export const DocumentsListPage: React.FC = () => {
       </Paper>
 
       {/* Tabla de Documentos */}
-      <Paper withBorder radius="md" style={{ backgroundColor: "#FFFFFF", overflow: "hidden" }}>
+      <Paper
+        withBorder
+        radius="md"
+        style={{ backgroundColor: "#FFFFFF", overflow: "hidden" }}
+      >
         {loading ? (
           <Center p="xl">
             <Loader color="amber" />
@@ -284,7 +311,9 @@ export const DocumentsListPage: React.FC = () => {
                 <Table.Th>Cliente / Destinatario</Table.Th>
                 <Table.Th>Importe Total</Table.Th>
                 <Table.Th>Estado SUNAT</Table.Th>
-                <Table.Th style={{ textAlign: "right" }}>Descargas & Acciones</Table.Th>
+                <Table.Th style={{ textAlign: "right" }}>
+                  Descargas & Acciones
+                </Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -292,10 +321,24 @@ export const DocumentsListPage: React.FC = () => {
                 <Table.Tr key={doc.id}>
                   <Table.Td>
                     <Group gap={6}>
-                      <Badge size="xs" variant="light" color={doc.type_code === "01" ? "blue" : doc.type_code === "03" ? "green" : "orange"}>
+                      <Badge
+                        size="xs"
+                        variant="light"
+                        color={
+                          doc.type_code === "01"
+                            ? "blue"
+                            : doc.type_code === "03"
+                              ? "green"
+                              : "orange"
+                        }
+                      >
                         {typeLabels[doc.type_code] || doc.type_code}
                       </Badge>
-                      <Text size="sm" fw={700} style={{ fontFamily: "monospace" }}>
+                      <Text
+                        size="sm"
+                        fw={700}
+                        style={{ fontFamily: "monospace" }}
+                      >
                         {doc.document_number}
                       </Text>
                     </Group>
@@ -309,7 +352,9 @@ export const DocumentsListPage: React.FC = () => {
                   <Table.Td>
                     <Text size="xs">{doc.issue_date}</Text>
                     <Text size="10px" c="dimmed">
-                      {doc.payment_method === "credito" ? "Al Crédito" : "Contado"}
+                      {doc.payment_method === "credito"
+                        ? "Al Crédito"
+                        : "Contado"}
                     </Text>
                   </Table.Td>
 
@@ -324,11 +369,15 @@ export const DocumentsListPage: React.FC = () => {
 
                   <Table.Td>
                     <Text size="sm" fw={700}>
-                      {doc.currency === "PEN" ? "S/" : "$"} {Number(doc.total).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                      {doc.currency === "PEN" ? "S/" : "$"}{" "}
+                      {Number(doc.total).toLocaleString("es-PE", {
+                        minimumFractionDigits: 2,
+                      })}
                     </Text>
                     {doc.detraction && (
                       <Text size="10px" c="orange.8">
-                        Detracción: S/ {Number(doc.detraction.amount || 0).toFixed(2)}
+                        Detracción: S/{" "}
+                        {Number(doc.detraction.amount || 0).toFixed(2)}
                       </Text>
                     )}
                   </Table.Td>
@@ -340,19 +389,19 @@ export const DocumentsListPage: React.FC = () => {
                         doc.status === "accepted"
                           ? "teal"
                           : doc.status === "pending"
-                          ? "orange"
-                          : doc.status === "voided"
-                          ? "gray"
-                          : "red"
+                            ? "orange"
+                            : doc.status === "voided"
+                              ? "gray"
+                              : "red"
                       }
                     >
                       {doc.status === "accepted"
                         ? "Aceptado"
                         : doc.status === "pending"
-                        ? "Pendiente"
-                        : doc.status === "voided"
-                        ? "Anulado"
-                        : "Rechazado"}
+                          ? "Pendiente"
+                          : doc.status === "voided"
+                            ? "Anulado"
+                            : "Rechazado"}
                     </Badge>
                     {doc.sunat_description && (
                       <Text size="10px" c="dimmed" lineClamp={1} mt={2}>
@@ -427,19 +476,20 @@ export const DocumentsListPage: React.FC = () => {
                         </Tooltip>
                       )}
 
-                      {(doc.type_code === "01" || doc.type_code === "03") && doc.status === "accepted" && (
-                        <Tooltip label="Emitir Nota de Crédito / Débito">
-                          <ActionIcon
-                            component={Link}
-                            to={`/notas-credito-debito?affectedType=${doc.type_code}&affectedSeries=${doc.series}&affectedCorr=${doc.correlative}&clientDoc=${doc.client_doc_number}&clientName=${encodeURIComponent(doc.client_name)}&amount=${doc.total_taxable}`}
-                            variant="light"
-                            color="orange"
-                            size="sm"
-                          >
-                            <FileDiff size={14} />
-                          </ActionIcon>
-                        </Tooltip>
-                      )}
+                      {(doc.type_code === "01" || doc.type_code === "03") &&
+                        doc.status === "accepted" && (
+                          <Tooltip label="Emitir Nota de Crédito / Débito">
+                            <ActionIcon
+                              component={Link}
+                              to={`/notas-credito-debito?affectedType=${doc.type_code}&affectedSeries=${doc.series}&affectedCorr=${doc.correlative}&clientDoc=${doc.client_doc_number}&clientName=${encodeURIComponent(doc.client_name)}&amount=${doc.total_taxable}`}
+                              variant="light"
+                              color="orange"
+                              size="sm"
+                            >
+                              <FileDiff size={14} />
+                            </ActionIcon>
+                          </Tooltip>
+                        )}
 
                       <Tooltip label="Archivar comprobante (eliminación lógica)">
                         <ActionIcon
@@ -507,16 +557,26 @@ export const DocumentsListPage: React.FC = () => {
       >
         <Box p="xs">
           <Text size="sm" mb="sm">
-            ¿Desea archivar el comprobante <b>{docToDelete?.series}-{docToDelete?.correlative}</b>?
+            ¿Desea archivar el comprobante{" "}
+            <b>
+              {docToDelete?.series}-{docToDelete?.correlative}
+            </b>
+            ?
           </Text>
           <Text size="xs" c="dimmed" mb="lg">
-            Se aplicará eliminación lógica. El comprobante dejará de mostrarse en la bandeja activa, pero se preservará íntegramente en la base de datos para cumplimiento tributario y fiscalizaciones de SUNAT.
+            Se aplicará eliminación lógica. El comprobante dejará de mostrarse
+            en la bandeja activa, pero se preservará íntegramente en la base de
+            datos para cumplimiento tributario y fiscalizaciones de SUNAT.
           </Text>
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setDocToDelete(null)}>
               Cancelar
             </Button>
-            <Button color="red" loading={isDeletingDoc} onClick={handleConfirmDeleteDoc}>
+            <Button
+              color="red"
+              loading={isDeletingDoc}
+              onClick={handleConfirmDeleteDoc}
+            >
               Archivar Comprobante
             </Button>
           </Group>

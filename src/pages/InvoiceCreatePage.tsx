@@ -603,8 +603,8 @@ export const InvoiceCreatePage: React.FC = () => {
           </Grid.Col>
           <Grid.Col span={{ base: 12, sm: 2.5 }}>
             <Select
-              label="Vendedor / Responsable"
-              placeholder="Asignar vendedor"
+              label="Responsable"
+              placeholder="Asignar responsable"
               clearable
               data={sellers.map((s) => ({
                 value: s.id.toString(),
@@ -645,7 +645,7 @@ export const InvoiceCreatePage: React.FC = () => {
           <Group>
             {catalogClients.length > 0 && (
               <Select
-                placeholder="⚡ Jalar cliente frecuente..."
+                placeholder="Seleccionar cliente..."
                 size="xs"
                 clearable
                 searchable
@@ -665,7 +665,7 @@ export const InvoiceCreatePage: React.FC = () => {
               leftSection={<UserPlus size={14} />}
               onClick={() => setQuickClientModal(true)}
             >
-              + Nuevo Cliente Rápido
+              + Nuevo Cliente
             </Button>
           </Group>
         </Group>
@@ -739,7 +739,7 @@ export const InvoiceCreatePage: React.FC = () => {
         <Group justify="space-between" mb="sm">
           <div>
             <Title order={5} style={{ color: "#0F172A" }}>
-              3. Detalle de Bienes y Servicios (Carbón / Minerales)
+              3. Detalle de Bienes y Servicios
             </Title>
             <Text size="xs" c="dimmed">
               Agregue los productos o servicios que forman parte de la operación
@@ -748,7 +748,7 @@ export const InvoiceCreatePage: React.FC = () => {
           <Group>
             {catalogProducts.length > 0 && (
               <Select
-                placeholder="⚡ Catálogo de productos..."
+                placeholder="Catálogo de productos..."
                 size="xs"
                 searchable
                 clearable
@@ -767,7 +767,7 @@ export const InvoiceCreatePage: React.FC = () => {
               leftSection={<PackagePlus size={14} />}
               onClick={() => setQuickProductModal(true)}
             >
-              + Nuevo Producto Rápido
+              + Nuevo Producto
             </Button>
             <Button
               size="xs"
@@ -862,11 +862,8 @@ export const InvoiceCreatePage: React.FC = () => {
           <div>
             <Group gap="xs">
               <Title order={5} style={{ color: "#0F172A" }}>
-                4. Régimen de Detracción (Minería & Carbón)
+                4. Régimen de Detracción
               </Title>
-              <Badge color="orange" size="xs">
-                SUNAT SPOT
-              </Badge>
             </Group>
             <Text size="xs" c="dimmed">
               Obligatorio en ventas de carbón y recursos minerales que superen S/ 700.00 (Tasa habitual 10%)
@@ -915,7 +912,7 @@ export const InvoiceCreatePage: React.FC = () => {
               <Grid.Col span={{ base: 12, sm: 4 }}>
                 <TextInput
                   label="Cuenta Banco de la Nación"
-                  placeholder="00-068-123456"
+                  placeholder="00-123-123456"
                   value={detractionAccount}
                   onChange={(e) => setDetractionAccount(e.currentTarget.value)}
                 />
@@ -1069,7 +1066,7 @@ export const InvoiceCreatePage: React.FC = () => {
           <Group>
             <UserPlus size={18} color="#2563EB" />
             <Text fw={700} size="sm">
-              Agregar Cliente Rápido
+              Agregar Cliente
             </Text>
           </Group>
         }
@@ -1172,7 +1169,7 @@ export const InvoiceCreatePage: React.FC = () => {
           <Group>
             <PackagePlus size={18} color="#4F46E5" />
             <Text fw={700} size="sm">
-              Agregar Producto o Servicio Rápido
+              Agregar Producto o Servicio
             </Text>
           </Group>
         }

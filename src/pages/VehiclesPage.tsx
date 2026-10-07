@@ -136,7 +136,7 @@ export const VehiclesPage: React.FC = () => {
             Flota Vehicular y Transporte
           </Title>
           <Text size="sm" c="dimmed">
-            Vehículos para Guías de Remisión Electrónica (GRE) • Empresa:{" "}
+            Vehículos para Guías de Remisión Electrónica • Empresa:{" "}
             <strong>{activeCompany?.trademark_name || activeCompany?.business_name}</strong>
           </Text>
         </div>

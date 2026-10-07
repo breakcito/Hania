@@ -157,7 +157,7 @@ export const ReportsPage: React.FC = () => {
         variant="light"
       >
         <Text size="xs">
-          Los reportes generados cuentan con estructura de Registro de Ventas e Ingresos (RVIE),
+          Los reportes generados cuentan con estructura de Registro de Ventas e Ingresos,
           cabeceras empresariales, fórmulas automáticas de sumatoria, desglose de detracciones y
           validación de estado tributario ante SUNAT.
         </Text>
@@ -174,7 +174,7 @@ export const ReportsPage: React.FC = () => {
                 </ThemeIcon>
                 <div>
                   <Title order={4} style={{ color: "#0F172A" }}>
-                    Registro de Ventas e Ingresos (RVIE)
+                    Registro de Ventas e Ingresos
                   </Title>
                   <Text size="xs" c="dimmed">
                     Formato estándar para declaración mensual SUNAT

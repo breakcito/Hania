@@ -497,7 +497,7 @@ export const ProductsPage: React.FC = () => {
               onChange={(e) => setCategoryName(e.currentTarget.value)}
             />
             <Select
-              label="Unidad de Medida SUNAT"
+              label="Unidad de Medida"
               data={[
                 { value: "NIU", label: "NIU - Unidades / Piezas" },
                 { value: "ZZ", label: "ZZ - Servicios" },

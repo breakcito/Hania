@@ -18,7 +18,8 @@ import { apiRequest } from "../api/client";
 import { useApp } from "../context/AppContext";
 
 export const CompaniesPage: React.FC = () => {
-  const { companies, activeCompany, setActiveCompany, refreshCompanies } = useApp();
+  const { companies, activeCompany, setActiveCompany, refreshCompanies } =
+    useApp();
 
   const [opened, setOpened] = useState(false);
   const [companyToDelete, setCompanyToDelete] = useState<any | null>(null);
@@ -37,7 +38,11 @@ export const CompaniesPage: React.FC = () => {
 
   const handleLookup = async () => {
     if (ruc.trim().length !== 11) {
-      notifications.show({ title: "Atención", message: "El RUC debe tener 11 dígitos", color: "orange" });
+      notifications.show({
+        title: "Atención",
+        message: "El RUC debe tener 11 dígitos",
+        color: "orange",
+      });
       return;
     }
     setIsSearching(true);
@@ -45,16 +50,26 @@ export const CompaniesPage: React.FC = () => {
       const res = await apiRequest(`/services/ruc/${ruc.trim()}`);
       if (res.data) {
         setBusinessName(res.data.razon_social || "");
-        setTrademarkName(res.data.nombre_comercial || res.data.razon_social || "");
+        setTrademarkName(
+          res.data.nombre_comercial || res.data.razon_social || "",
+        );
         setAddress(res.data.direccion || "");
         setUbigeo(res.data.ubigeo || "");
         setDepartment(res.data.departamento || "");
         setProvince(res.data.provincia || "");
         setDistrict(res.data.distrito || "");
-        notifications.show({ title: "SUNAT", message: "Empresa identificada", color: "teal" });
+        notifications.show({
+          title: "SUNAT",
+          message: "Empresa identificada",
+          color: "teal",
+        });
       }
     } catch (err: any) {
-      notifications.show({ title: "Error", message: err.message, color: "red" });
+      notifications.show({
+        title: "Error",
+        message: err.message,
+        color: "red",
+      });
     } finally {
       setIsSearching(false);
     }
@@ -78,14 +93,22 @@ export const CompaniesPage: React.FC = () => {
           is_matrix: false,
         }),
       });
-      notifications.show({ title: "Empresa Registrada", message: "La empresa se agregó al sistema multiempresa", color: "teal" });
+      notifications.show({
+        title: "Empresa Registrada",
+        message: "La empresa se agregó al sistema multiempresa",
+        color: "teal",
+      });
       setOpened(false);
       setRuc("");
       setBusinessName("");
       setAddress("");
       await refreshCompanies();
     } catch (err: any) {
-      notifications.show({ title: "Error", message: err.message, color: "red" });
+      notifications.show({
+        title: "Error",
+        message: err.message,
+        color: "red",
+      });
     } finally {
       setIsSaving(false);
     }
@@ -95,7 +118,9 @@ export const CompaniesPage: React.FC = () => {
     if (!companyToDelete) return;
     setIsDeleting(true);
     try {
-      await apiRequest(`/companies/${companyToDelete.id}`, { method: "DELETE" });
+      await apiRequest(`/companies/${companyToDelete.id}`, {
+        method: "DELETE",
+      });
       notifications.show({
         title: "Empresa Desactivada",
         message: `La empresa ${companyToDelete.business_name} fue eliminada lógicamente (se preserva su historial)`,
@@ -104,30 +129,13 @@ export const CompaniesPage: React.FC = () => {
       setCompanyToDelete(null);
       await refreshCompanies();
     } catch (err: any) {
-      notifications.show({ title: "Error", message: err.message, color: "red" });
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  const handleSyncFactos = async () => {
-    setIsSyncing(true);
-    try {
-      const synced = await apiRequest("/companies/sync-factos", { method: "POST" });
       notifications.show({
-        title: "Sincronización Exitosa",
-        message: `Se sincronizaron ${synced.length} empresa(s) con Factos API`,
-        color: "teal",
-      });
-      await refreshCompanies();
-    } catch (err: any) {
-      notifications.show({
-        title: "Error al sincronizar",
-        message: err.message || "Fallo al comunicar con Factos API",
+        title: "Error",
+        message: err.message,
         color: "red",
       });
     } finally {
-      setIsSyncing(false);
+      setIsDeleting(false);
     }
   };
 
@@ -139,32 +147,26 @@ export const CompaniesPage: React.FC = () => {
             Gestión Multiempresa
           </Title>
           <Text size="sm" c="dimmed">
-            Administre a <b>Corporación de Servicios Cupper & Hannia E.I.R.L</b> y las empresas vinculadas del grupo
+            Administre a <b>Corporación de Servicios Cupper & Hannia E.I.R.L</b>{" "}
+            y las empresas vinculadas del grupo
           </Text>
         </div>
 
-        <Group>
-          <Button
-            leftSection={<RotateCw size={16} />}
-            variant="default"
-            onClick={handleSyncFactos}
-            loading={isSyncing}
-          >
-            Sincronizar con Factos API
-          </Button>
-
-          <Button
-            leftSection={<Plus size={16} />}
-            color="amber"
-            style={{ backgroundColor: "#D97706" }}
-            onClick={() => setOpened(true)}
-          >
-            Registrar Nueva Empresa
-          </Button>
-        </Group>
+        <Button
+          leftSection={<Plus size={16} />}
+          color="amber"
+          style={{ backgroundColor: "#D97706" }}
+          onClick={() => setOpened(true)}
+        >
+          Registrar Nueva Empresa
+        </Button>
       </Group>
 
-      <Paper withBorder radius="md" style={{ backgroundColor: "#FFFFFF", overflow: "hidden" }}>
+      <Paper
+        withBorder
+        radius="md"
+        style={{ backgroundColor: "#FFFFFF", overflow: "hidden" }}
+      >
         <Table verticalSpacing="md" striped highlightOnHover>
           <Table.Thead>
             <Table.Tr style={{ backgroundColor: "#F8FAFC" }}>
@@ -179,9 +181,18 @@ export const CompaniesPage: React.FC = () => {
             {companies.map((comp) => {
               const isSelected = activeCompany?.id === comp.id;
               return (
-                <Table.Tr key={comp.id} style={{ backgroundColor: isSelected ? "#FEF3C7" : undefined }}>
+                <Table.Tr
+                  key={comp.id}
+                  style={{
+                    backgroundColor: isSelected ? "#FEF3C7" : undefined,
+                  }}
+                >
                   <Table.Td>
-                    <Text size="sm" fw={700} style={{ fontFamily: "monospace" }}>
+                    <Text
+                      size="sm"
+                      fw={700}
+                      style={{ fontFamily: "monospace" }}
+                    >
                       {comp.ruc}
                     </Text>
                   </Table.Td>
@@ -189,21 +200,23 @@ export const CompaniesPage: React.FC = () => {
                     <Text size="sm" fw={700}>
                       {comp.business_name}
                     </Text>
-                    {comp.trademark_name && comp.trademark_name !== comp.business_name && (
-                      <Text size="xs" c="dimmed">
-                        Comercial: {comp.trademark_name}
-                      </Text>
-                    )}
+                    {comp.trademark_name &&
+                      comp.trademark_name !== comp.business_name && (
+                        <Text size="xs" c="dimmed">
+                          Comercial: {comp.trademark_name}
+                        </Text>
+                      )}
                   </Table.Td>
                   <Table.Td>
                     <Text size="xs">{comp.address || "-"}</Text>
                     <Text size="11px" c="dimmed">
-                      {comp.district} - {comp.province} - {comp.department} (Ubigeo: {comp.ubigeo})
+                      {comp.district} - {comp.province} - {comp.department}{" "}
+                      (Ubigeo: {comp.ubigeo})
                     </Text>
                   </Table.Td>
                   <Table.Td>
                     {comp.is_matrix ? (
-                      <Badge color="amber" variant="filled">
+                      <Badge color="indigo" variant="filled">
                         Empresa Matriz
                       </Badge>
                     ) : (
@@ -215,11 +228,18 @@ export const CompaniesPage: React.FC = () => {
                   <Table.Td style={{ textAlign: "right" }}>
                     <Group justify="flex-end" gap="xs">
                       {isSelected ? (
-                        <Badge color="teal" leftSection={<CheckCircle size={12} />}>
+                        <Badge
+                          color="teal"
+                          leftSection={<CheckCircle size={12} />}
+                        >
                           Empresa Activa
                         </Badge>
                       ) : (
-                        <Button size="xs" variant="default" onClick={() => setActiveCompany(comp)}>
+                        <Button
+                          size="xs"
+                          variant="default"
+                          onClick={() => setActiveCompany(comp)}
+                        >
                           Seleccionar
                         </Button>
                       )}
@@ -243,7 +263,13 @@ export const CompaniesPage: React.FC = () => {
       </Paper>
 
       {/* Modal Registrar Nueva Empresa */}
-      <Modal opened={opened} onClose={() => setOpened(false)} title="Registrar Empresa Filial en el Sistema" centered size="md">
+      <Modal
+        opened={opened}
+        onClose={() => setOpened(false)}
+        title="Registrar Empresa Filial en el Sistema"
+        centered
+        size="md"
+      >
         <Box p="xs">
           <TextInput
             label="RUC de la Empresa (11 dígitos)"
@@ -253,25 +279,64 @@ export const CompaniesPage: React.FC = () => {
             maxLength={11}
             mb="xs"
             rightSection={
-              <ActionIcon variant="filled" color="amber" onClick={handleLookup} loading={isSearching} size="sm">
+              <ActionIcon
+                variant="filled"
+                color="amber"
+                onClick={handleLookup}
+                loading={isSearching}
+                size="sm"
+              >
                 <Search size={14} />
               </ActionIcon>
             }
           />
-          <TextInput label="Razón Social" value={businessName} onChange={(e) => setBusinessName(e.currentTarget.value)} mb="xs" required />
-          <TextInput label="Nombre Comercial" value={trademarkName} onChange={(e) => setTrademarkName(e.currentTarget.value)} mb="xs" />
-          <TextInput label="Dirección Fiscal" value={address} onChange={(e) => setAddress(e.currentTarget.value)} mb="xs" />
+          <TextInput
+            label="Razón Social"
+            value={businessName}
+            onChange={(e) => setBusinessName(e.currentTarget.value)}
+            mb="xs"
+            required
+          />
+          <TextInput
+            label="Nombre Comercial"
+            value={trademarkName}
+            onChange={(e) => setTrademarkName(e.currentTarget.value)}
+            mb="xs"
+          />
+          <TextInput
+            label="Dirección Fiscal"
+            value={address}
+            onChange={(e) => setAddress(e.currentTarget.value)}
+            mb="xs"
+          />
           <Group grow mb="md">
-            <TextInput label="Departamento" value={department} onChange={(e) => setDepartment(e.currentTarget.value)} />
-            <TextInput label="Provincia" value={province} onChange={(e) => setProvince(e.currentTarget.value)} />
-            <TextInput label="Distrito" value={district} onChange={(e) => setDistrict(e.currentTarget.value)} />
+            <TextInput
+              label="Departamento"
+              value={department}
+              onChange={(e) => setDepartment(e.currentTarget.value)}
+            />
+            <TextInput
+              label="Provincia"
+              value={province}
+              onChange={(e) => setProvince(e.currentTarget.value)}
+            />
+            <TextInput
+              label="Distrito"
+              value={district}
+              onChange={(e) => setDistrict(e.currentTarget.value)}
+            />
           </Group>
 
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setOpened(false)}>
               Cancelar
             </Button>
-            <Button color="amber" loading={isSaving} onClick={handleSave} style={{ backgroundColor: "#D97706" }}>
+            <Button
+              color="amber"
+              loading={isSaving}
+              onClick={handleSave}
+              style={{ backgroundColor: "#D97706" }}
+            >
               Registrar Empresa
             </Button>
           </Group>
@@ -288,16 +353,23 @@ export const CompaniesPage: React.FC = () => {
       >
         <Box p="xs">
           <Text size="sm" mb="sm">
-            ¿Está seguro de desactivar la empresa <b>{companyToDelete?.business_name}</b>?
+            ¿Está seguro de desactivar la empresa{" "}
+            <b>{companyToDelete?.business_name}</b>?
           </Text>
           <Text size="xs" c="dimmed" mb="lg">
-            La empresa será dada de baja del listado activo, pero todos los comprobantes emitidos y movimientos históricos se mantendrán almacenados de forma inmutable para SUNAT.
+            La empresa será dada de baja del listado activo, pero todos los
+            comprobantes emitidos y movimientos históricos se mantendrán
+            almacenados de forma inmutable para SUNAT.
           </Text>
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setCompanyToDelete(null)}>
               Cancelar
             </Button>
-            <Button color="red" loading={isDeleting} onClick={handleConfirmDelete}>
+            <Button
+              color="red"
+              loading={isDeleting}
+              onClick={handleConfirmDelete}
+            >
               Desactivar Empresa
             </Button>
           </Group>

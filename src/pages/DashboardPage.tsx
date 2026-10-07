@@ -82,7 +82,7 @@ export const DashboardPage: React.FC = () => {
     {
       title: "Ventas en Dólares (USD)",
       value: `$ ${Number(stats.month_sales_usd || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
-      subtitle: "Exportación / Mercado Exterior",
+      subtitle: "Divisa Extranjera",
       icon: Landmark,
       color: "blue",
     },
@@ -96,14 +96,14 @@ export const DashboardPage: React.FC = () => {
     {
       title: "Guías de Remisión (GRE)",
       value: stats.month_despatches_count,
-      subtitle: "Traslados de carbón / mineral",
+      subtitle: "Traslados",
       icon: Truck,
       color: "indigo",
     },
     {
       title: "Detracciones Retenidas",
       value: `S/ ${Number(stats.month_detraction_pen || 0).toLocaleString("es-PE", { minimumFractionDigits: 2 })}`,
-      subtitle: "Tasa 10% Minería / Carbón (BN)",
+      subtitle: "Banco de la Nación",
       icon: Landmark,
       color: "grape",
     },

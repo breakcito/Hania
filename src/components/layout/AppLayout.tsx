@@ -42,19 +42,19 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
   const navigate = useNavigate();
 
   const navItems = [
-    { label: "Dashboard Indicadores", path: "/", icon: LayoutDashboard },
-    { label: "Emitir Factura / Boleta", path: "/emitir-comprobante", icon: FilePlus },
-    { label: "Guías de Remisión (GRE)", path: "/guias-remision", icon: Truck },
-    { label: "Notas de Crédito / Débito", path: "/notas-credito-debito", icon: FileDiff },
+    { label: "Dashboard", path: "/", icon: LayoutDashboard },
     { label: "Historial de Comprobantes", path: "/comprobantes", icon: FileSpreadsheet },
+    { label: "Emitir Factura / Boleta", path: "/emitir-comprobante", icon: FilePlus },
+    { label: "Guías de Remisión", path: "/guias-remision", icon: Truck },
+    { label: "Notas de Crédito / Débito", path: "/notas-credito-debito", icon: FileDiff },
     { label: "Centro de Reportes Excel", path: "/reportes", icon: BarChart3 },
     { label: "Cuentas Bancarias", path: "/cuentas-bancarias", icon: Landmark },
     { label: "Series y Correlativos", path: "/series", icon: Hash },
     { label: "Clientes Frecuentes", path: "/clientes", icon: Users },
     { label: "Catálogo de Productos", path: "/productos", icon: Package },
-    { label: "Personal / Vendedores", path: "/trabajadores", icon: UserCheck },
-    { label: "Vehículos / Flota GRE", path: "/vehiculos", icon: Truck },
-    { label: "Empresas (Multiempresa)", path: "/empresas", icon: Building2 },
+    { label: "Trabajadores", path: "/trabajadores", icon: UserCheck },
+    { label: "Vehículos / Flota", path: "/vehiculos", icon: Truck },
+    { label: "Empresas", path: "/empresas", icon: Building2 },
     { label: "Usuarios del Sistema", path: "/usuarios", icon: UserPlus },
   ];
 
@@ -123,7 +123,7 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
               <Box style={{ width: 230 }}>
                 <Select
                   size="xs"
-                  label="Empresa emisora activa:"
+                  label="Empresa:"
                   value={activeCompany?.id.toString() || ""}
                   onChange={handleCompanyChange}
                   data={companies.map((c) => ({

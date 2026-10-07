@@ -360,7 +360,7 @@ export const DespatchCreatePage: React.FC = () => {
           </Title>
           {clients.length > 0 && (
             <Select
-              placeholder="⚡ Jalar cliente frecuente..."
+              placeholder="Seleccionar cliente..."
               size="xs"
               clearable
               searchable
