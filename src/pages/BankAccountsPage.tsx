@@ -45,9 +45,12 @@ export const BankAccountsPage: React.FC = () => {
   const [accountNumber, setAccountNumber] = useState("");
   const [cciNumber, setCciNumber] = useState("");
   const [alias, setAlias] = useState("");
-  const [showInPdf, setShowInPdf] = useState(true);
+  const [isDetraction, setIsDetraction] = useState(false);
   const [isDefault, setIsDefault] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const selectedBank = banks.find((b) => b.id.toString() === bankId);
+  const canBeDetraction = Boolean((selectedBank?.is_national || selectedBank?.code === "BN") && currency === "PEN");
 
   const loadData = async () => {
     if (!activeCompany) return;
@@ -92,12 +95,12 @@ export const BankAccountsPage: React.FC = () => {
         body: JSON.stringify({
           company_id: activeCompany.id,
           bank_id: Number(bankId),
-          account_type: accountType,
+          account_type: isDetraction ? "detraccion" : accountType,
           currency: currency,
           account_number: accountNumber.trim(),
           cci_number: cciNumber.trim() || null,
           alias: alias.trim() || null,
-          show_in_pdf: showInPdf,
+          is_detraction: isDetraction,
           is_default: isDefault,
         }),
       });
@@ -144,7 +147,7 @@ export const BankAccountsPage: React.FC = () => {
     setAccountNumber("");
     setCciNumber("");
     setAlias("");
-    setShowInPdf(true);
+    setIsDetraction(false);
     setIsDefault(false);
   };
 
@@ -447,16 +450,19 @@ export const BankAccountsPage: React.FC = () => {
           <Group justify="space-between" mb="lg">
             <div>
               <Text size="sm" fw={500}>
-                Mostrar en comprobantes PDF
+                ¿Es Cuenta de Detracción SUNAT?
               </Text>
               <Text size="xs" c="dimmed">
-                Imprime esta cuenta en el pie de página de las facturas
+                {canBeDetraction
+                  ? "Aplica para retención de detracciones del Banco de la Nación en Soles (PEN)"
+                  : "Solo disponible para Banco de la Nación y moneda Soles (PEN)"}
               </Text>
             </div>
             <Switch
-              checked={showInPdf}
-              onChange={(e) => setShowInPdf(e.currentTarget.checked)}
-              color="indigo"
+              checked={isDetraction}
+              disabled={!canBeDetraction}
+              onChange={(e) => setIsDetraction(e.currentTarget.checked)}
+              color="orange"
             />
           </Group>
 

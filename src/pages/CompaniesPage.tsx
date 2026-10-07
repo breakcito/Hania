@@ -7,15 +7,20 @@ import {
   Table,
   Button,
   TextInput,
+  Select,
   Modal,
   Badge,
   Box,
   ActionIcon,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { Plus, Search, CheckCircle, Trash2, RotateCw } from "lucide-react";
+import { Plus, Search, CheckCircle, Trash2 } from "lucide-react";
 import { apiRequest } from "../api/client";
 import { useApp } from "../context/AppContext";
+
+import departamentosData from "../ubigeo/departamentos.json";
+import provinciasData from "../ubigeo/provincias.json";
+import distritosData from "../ubigeo/distritos.json";
 
 export const CompaniesPage: React.FC = () => {
   const { companies, activeCompany, setActiveCompany, refreshCompanies } =
@@ -24,7 +29,6 @@ export const CompaniesPage: React.FC = () => {
   const [opened, setOpened] = useState(false);
   const [companyToDelete, setCompanyToDelete] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [ruc, setRuc] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [trademarkName, setTrademarkName] = useState("");
@@ -35,6 +39,21 @@ export const CompaniesPage: React.FC = () => {
   const [district, setDistrict] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Ubigeo Cascading Logic
+  const selectedDepObj = (departamentosData as any[]).find(
+    (d) => d.nombre_ubigeo.toLowerCase() === department.toLowerCase()
+  );
+  const availableProvincias = selectedDepObj
+    ? ((provinciasData as Record<string, any[]>)[selectedDepObj.id_ubigeo] || [])
+    : [];
+
+  const selectedProvObj = availableProvincias.find(
+    (p) => p.nombre_ubigeo.toLowerCase() === province.toLowerCase()
+  );
+  const availableDistritos = selectedProvObj
+    ? ((distritosData as Record<string, any[]>)[selectedProvObj.id_ubigeo] || [])
+    : [];
 
   const handleLookup = async () => {
     if (ruc.trim().length !== 11) {
@@ -309,23 +328,68 @@ export const CompaniesPage: React.FC = () => {
             onChange={(e) => setAddress(e.currentTarget.value)}
             mb="xs"
           />
-          <Group grow mb="md">
-            <TextInput
+          <Group grow mb="xs">
+            <Select
               label="Departamento"
+              placeholder="Seleccionar departamento..."
+              searchable
+              clearable
+              data={(departamentosData as any[]).map((d) => ({
+                value: d.nombre_ubigeo,
+                label: d.nombre_ubigeo,
+              }))}
               value={department}
-              onChange={(e) => setDepartment(e.currentTarget.value)}
+              onChange={(val) => {
+                setDepartment(val || "");
+                setProvince("");
+                setDistrict("");
+                setUbigeo("");
+              }}
             />
-            <TextInput
+            <Select
               label="Provincia"
+              placeholder="Seleccionar provincia..."
+              searchable
+              clearable
+              disabled={!department || availableProvincias.length === 0}
+              data={availableProvincias.map((p) => ({
+                value: p.nombre_ubigeo,
+                label: p.nombre_ubigeo,
+              }))}
               value={province}
-              onChange={(e) => setProvince(e.currentTarget.value)}
+              onChange={(val) => {
+                setProvince(val || "");
+                setDistrict("");
+                setUbigeo("");
+              }}
             />
-            <TextInput
+            <Select
               label="Distrito"
+              placeholder="Seleccionar distrito..."
+              searchable
+              clearable
+              disabled={!province || availableDistritos.length === 0}
+              data={availableDistritos.map((dist) => ({
+                value: dist.nombre_ubigeo,
+                label: dist.nombre_ubigeo,
+              }))}
               value={district}
-              onChange={(e) => setDistrict(e.currentTarget.value)}
+              onChange={(val) => {
+                setDistrict(val || "");
+                const matched = availableDistritos.find((d) => d.nombre_ubigeo === val);
+                if (matched && matched.codigo_ubigeo) {
+                  setUbigeo(matched.codigo_ubigeo);
+                }
+              }}
             />
           </Group>
+          <TextInput
+            label="Código de Ubigeo SUNAT (6 dígitos)"
+            placeholder="Ej. 130101"
+            value={ubigeo}
+            onChange={(e) => setUbigeo(e.currentTarget.value)}
+            mb="md"
+          />
 
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setOpened(false)}>

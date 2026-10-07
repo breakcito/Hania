@@ -22,7 +22,7 @@ import { apiRequest } from "../api/client";
 import { useApp } from "../context/AppContext";
 
 export const DespatchesListPage: React.FC = () => {
-  const { activeCompany, isTestMode } = useApp();
+  const { activeCompany, isTestMode, startDate, endDate } = useApp();
   const [despatches, setDespatches] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -39,6 +39,8 @@ export const DespatchesListPage: React.FC = () => {
       const q = new URLSearchParams();
       if (activeCompany) q.set("company_id", activeCompany.id.toString());
       if (isTestMode) q.set("is_test_mode", "true");
+      if (startDate) q.set("start_date", startDate);
+      if (endDate) q.set("end_date", endDate);
       const data = await apiRequest(`/despatches?${q.toString()}`);
       setDespatches(data);
     } catch (err) {
@@ -50,7 +52,7 @@ export const DespatchesListPage: React.FC = () => {
 
   useEffect(() => {
     loadDespatches();
-  }, [activeCompany, isTestMode]);
+  }, [activeCompany, isTestMode, startDate, endDate]);
 
   const handleVoid = async () => {
     if (!voidGre || voidReason.trim().length < 5) {

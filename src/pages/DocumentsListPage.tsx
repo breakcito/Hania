@@ -35,7 +35,7 @@ import { apiRequest } from "../api/client";
 import { useApp } from "../context/AppContext";
 
 export const DocumentsListPage: React.FC = () => {
-  const { activeCompany, isTestMode } = useApp();
+  const { activeCompany, isTestMode, startDate, endDate } = useApp();
   const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -64,6 +64,8 @@ export const DocumentsListPage: React.FC = () => {
       });
       if (typeCode) q.set("type_code", typeCode);
       if (status) q.set("status", status);
+      if (startDate) q.set("start_date", startDate);
+      if (endDate) q.set("end_date", endDate);
 
       const token = localStorage.getItem("hania_token");
       const baseUrl =
@@ -112,6 +114,8 @@ export const DocumentsListPage: React.FC = () => {
       if (typeCode) q.set("type_code", typeCode);
       if (status) q.set("status", status);
       if (search.trim()) q.set("search", search.trim());
+      if (startDate) q.set("start_date", startDate);
+      if (endDate) q.set("end_date", endDate);
 
       const data = await apiRequest(`/documents?${q.toString()}`);
       setDocuments(data);
@@ -124,7 +128,7 @@ export const DocumentsListPage: React.FC = () => {
 
   useEffect(() => {
     loadDocs();
-  }, [activeCompany, isTestMode, typeCode, status]);
+  }, [activeCompany, isTestMode, typeCode, status, startDate, endDate]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();

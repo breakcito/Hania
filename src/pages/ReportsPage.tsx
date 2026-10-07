@@ -24,22 +24,22 @@ import {
 import { useApp } from "../context/AppContext";
 
 export const ReportsPage: React.FC = () => {
-  const { activeCompany, isTestMode } = useApp();
+  const { activeCompany, isTestMode, startDate, endDate } = useApp();
 
   // Filtros Registro de Ventas
   const today = new Date();
   const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split("T")[0];
-  const lastDayOfMonth = today.toISOString().split("T")[0];
+  const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split("T")[0];
 
-  const [salesStartDate, setSalesStartDate] = useState<string>(firstDayOfMonth);
-  const [salesEndDate, setSalesEndDate] = useState<string>(lastDayOfMonth);
+  const [salesStartDate, setSalesStartDate] = useState<string>(startDate || firstDayOfMonth);
+  const [salesEndDate, setSalesEndDate] = useState<string>(endDate || lastDayOfMonth);
   const [salesType, setSalesType] = useState<string | null>(null);
   const [salesStatus, setSalesStatus] = useState<string | null>(null);
   const [isDownloadingSales, setIsDownloadingSales] = useState(false);
 
   // Filtros Guías
-  const [greStartDate, setGreStartDate] = useState<string>(firstDayOfMonth);
-  const [greEndDate, setGreEndDate] = useState<string>(lastDayOfMonth);
+  const [greStartDate, setGreStartDate] = useState<string>(startDate || firstDayOfMonth);
+  const [greEndDate, setGreEndDate] = useState<string>(endDate || lastDayOfMonth);
   const [isDownloadingGre, setIsDownloadingGre] = useState(false);
 
   const downloadFile = async (url: string, defaultFilename: string) => {

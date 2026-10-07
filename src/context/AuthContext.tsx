@@ -5,6 +5,8 @@ export interface User {
   id: number;
   username: string;
   full_name: string | null;
+  role?: string | null;
+  permissions?: string | null;
   is_active: boolean;
   created_at: string;
 }
@@ -21,9 +23,20 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    try {
+      const saved = localStorage.getItem("hania_user");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [token, setToken] = useState<string | null>(() => localStorage.getItem("hania_token"));
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    const savedToken = localStorage.getItem("hania_token");
+    const savedUser = localStorage.getItem("hania_user");
+    return !!savedToken && !savedUser;
+  });
 
   useEffect(() => {
     async function loadUser() {
@@ -34,11 +47,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const userData = await apiRequest<User>("/auth/me");
         setUser(userData);
-      } catch (err) {
-        console.error("Token verification failed:", err);
-        localStorage.removeItem("hania_token");
-        setToken(null);
-        setUser(null);
+        localStorage.setItem("hania_user", JSON.stringify(userData));
+      } catch (err: any) {
+        console.warn("Token verification check notice:", err);
+        // Only clear credentials if backend explicitly responds with 401 Unauthorized
+        // Do NOT log out on connection timeouts, network blips, or server restarts
+        if (err?.status === 401) {
+          localStorage.removeItem("hania_token");
+          localStorage.removeItem("hania_user");
+          setToken(null);
+          setUser(null);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -52,12 +71,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       body: JSON.stringify({ username, password }),
     });
     localStorage.setItem("hania_token", res.access_token);
+    localStorage.setItem("hania_user", JSON.stringify(res.user));
     setToken(res.access_token);
     setUser(res.user);
   };
 
   const logout = () => {
     localStorage.removeItem("hania_token");
+    localStorage.removeItem("hania_user");
     setToken(null);
     setUser(null);
   };

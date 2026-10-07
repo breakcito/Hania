@@ -12,7 +12,6 @@ import {
   Button,
   Table,
   ActionIcon,
-  Badge,
   Switch,
   Alert,
   Divider,
@@ -33,9 +32,11 @@ import {
 } from "lucide-react";
 import { apiRequest } from "../api/client";
 import { useApp } from "../context/AppContext";
+import { useAuth } from "../context/AuthContext";
 
 export const InvoiceCreatePage: React.FC = () => {
-  const { activeCompany, isTestMode, setIsTestMode } = useApp();
+  const { activeCompany, isTestMode } = useApp();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   // Encabezado
@@ -89,6 +90,7 @@ export const InvoiceCreatePage: React.FC = () => {
 
   // Catálogos SUNAT y Cuentas Bancarias
   const [detractionServices, setDetractionServices] = useState<any[]>([]);
+  const [availableBnAccounts, setAvailableBnAccounts] = useState<any[]>([]);
 
   // Vendedores y Personal
   const [sellers, setSellers] = useState<any[]>([]);
@@ -155,11 +157,34 @@ export const InvoiceCreatePage: React.FC = () => {
         setCatalogClients(clientsData || []);
         setSellers(employeesData || []);
 
-        const bnAcc = bankData.find((b: any) => b.account_type === "detraccion");
-        if (bnAcc) {
-          setDetractionAccount(bnAcc.account_number);
+        // Filtrar y establecer cuentas del Banco de la Nación para Detracciones
+        const bnAccountsList = (bankData || []).filter(
+          (b: any) =>
+            b.is_detraction ||
+            b.account_type === "detraccion" ||
+            (b.bank && (b.bank.is_national || b.bank.code === "BN" || b.bank.name?.toLowerCase().includes("naci")))
+        );
+        setAvailableBnAccounts(bnAccountsList);
+
+        if (bnAccountsList.length > 0) {
+          setDetractionAccount(bnAccountsList[0].account_number);
         } else if (activeCompany.bn_account) {
           setDetractionAccount(activeCompany.bn_account);
+        }
+
+        // Auto-seleccionar al usuario logueado en Responsable
+        if (employeesData && employeesData.length > 0) {
+          const match = employeesData.find(
+            (e: any) =>
+              (user?.id && e.user_id === user.id) ||
+              (user?.username && e.username === user.username) ||
+              (user?.full_name && e.full_name?.toLowerCase().includes((user.full_name || "").toLowerCase()))
+          );
+          if (match) {
+            setSelectedSellerId(match.id.toString());
+          } else {
+            setSelectedSellerId(employeesData[0].id.toString());
+          }
         }
 
         if (typeCode === "01") {
@@ -172,7 +197,7 @@ export const InvoiceCreatePage: React.FC = () => {
       }
     }
     loadInitialData();
-  }, [activeCompany, typeCode]);
+  }, [activeCompany, typeCode, user]);
 
   // Consultar próximo correlativo en tiempo real
   useEffect(() => {
@@ -236,10 +261,16 @@ export const InvoiceCreatePage: React.FC = () => {
     }
   };
 
-  // Seleccionar cliente frecuente
+  // Seleccionar cliente frecuente (limpiar si se deselecciona)
   const handleSelectClient = (clientId: string | null) => {
     setSelectedClientId(clientId);
-    if (!clientId) return;
+    if (!clientId) {
+      setClientDocNumber("");
+      setClientName("");
+      setClientAddress("");
+      setClientEmail("");
+      return;
+    }
     const c = catalogClients.find((x) => x.id.toString() === clientId);
     if (!c) return;
     setClientDocType(c.doc_type);
@@ -505,32 +536,6 @@ export const InvoiceCreatePage: React.FC = () => {
           </Text>
         </div>
 
-        {/* Toggle de Modo de Prueba en Formulario */}
-        <Box
-          p="xs"
-          style={{
-            backgroundColor: isTestMode ? "#FEF3C7" : "#F8FAFC",
-            borderRadius: 8,
-            border: isTestMode ? "1px solid #F59E0B" : "1px solid #E2E8F0",
-          }}
-        >
-          <Group gap="xs">
-            {isTestMode ? <AlertTriangle size={18} color="#D97706" /> : <Info size={18} color="#64748B" />}
-            <div>
-              <Text size="xs" fw={700} c={isTestMode ? "orange.9" : "dark.8"}>
-                {isTestMode ? "MODO DE PRUEBA ACTIVO" : "MODO PRODUCCIÓN REAL"}
-              </Text>
-              <Text size="10px" c="dimmed">
-                {isTestMode ? "Operación simulada sin efecto tributario" : "Se declarará formalmente a SUNAT"}
-              </Text>
-            </div>
-            <Switch
-              checked={isTestMode}
-              onChange={(e) => setIsTestMode(e.currentTarget.checked)}
-              color="orange"
-            />
-          </Group>
-        </Box>
       </Group>
 
       {/* Tarjeta 1: Datos Generales */}
@@ -880,7 +885,7 @@ export const InvoiceCreatePage: React.FC = () => {
         {hasDetraction && (
           <Box p="sm" style={{ backgroundColor: "#FFFBEB", borderRadius: 8, border: "1px solid #FDE68A" }}>
             <Grid>
-              <Grid.Col span={{ base: 12, sm: 4 }}>
+              <Grid.Col span={{ base: 12, sm: 5 }}>
                 <Select
                   label="Código de Bien Sujeto a Detracción"
                   value={detractionCode}
@@ -888,8 +893,8 @@ export const InvoiceCreatePage: React.FC = () => {
                     if (val) {
                       setDetractionCode(val);
                       const svc = detractionServices.find((s) => s.code === val);
-                      if (svc && svc.default_percent) {
-                        setDetractionPercent(svc.default_percent);
+                      if (svc) {
+                        setDetractionPercent(svc.default_percent || svc.percent || 10);
                       }
                     }
                   }}
@@ -897,38 +902,53 @@ export const InvoiceCreatePage: React.FC = () => {
                     detractionServices.length > 0
                       ? detractionServices.map((s) => ({
                           value: s.code,
-                          label: `${s.code} - ${s.name} (${s.default_percent}%)`,
+                          label: `${s.code} - ${s.name || s.description} (${s.default_percent || s.percent || 0}%)`,
                         }))
                       : [
-                          { value: "023", label: "023 - Recursos hidrobiológicos (4%)" },
-                          { value: "025", label: "025 - Minerales y carbón (10%)" },
-                          { value: "024", label: "024 - Mantenimiento y servicios (12%)" },
-                          { value: "037", label: "037 - Transporte terrestre (4%)" },
+                          { value: "023", label: "023 - Leche (4%)" },
+                          { value: "025", label: "025 - Fabricación de bienes por encargo (10%)" },
+                          { value: "039", label: "039 - Minerales no metálicos (Carbón y derivados) (10%)" },
+                          { value: "027", label: "027 - Servicio de transporte de carga (4%)" },
+                          { value: "022", label: "022 - Otros servicios empresariales (12%)" },
                         ]
                   }
+                  searchable
                   allowDeselect={false}
                 />
               </Grid.Col>
               <Grid.Col span={{ base: 12, sm: 4 }}>
-                <TextInput
+                <Select
                   label="Cuenta Banco de la Nación"
-                  placeholder="00-123-123456"
+                  placeholder="Seleccione cuenta BN..."
                   value={detractionAccount}
-                  onChange={(e) => setDetractionAccount(e.currentTarget.value)}
+                  onChange={(val) => setDetractionAccount(val || "")}
+                  data={
+                    [
+                      ...(activeCompany?.bn_account
+                        ? [{ value: activeCompany.bn_account, label: `${activeCompany.bn_account} (Principal BN)` }]
+                        : []),
+                      ...availableBnAccounts.map((a: any) => ({
+                        value: a.account_number,
+                        label: `${a.account_number} (${a.alias || a.bank?.name || "Banco de la Nación"})`,
+                      })),
+                    ].filter((item, idx, self) => idx === self.findIndex((t) => t.value === item.value))
+                  }
+                  searchable
+                  allowDeselect={false}
                 />
               </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 2 }}>
+              <Grid.Col span={{ base: 12, sm: 1.5 }}>
                 <NumberInput
-                  label="Porcentaje (%)"
+                  label="Tasa (%)"
                   value={detractionPercent}
                   onChange={(val) => setDetractionPercent(Number(val))}
                   min={1}
-                  max={20}
+                  max={30}
                 />
               </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 2 }}>
+              <Grid.Col span={{ base: 12, sm: 1.5 }}>
                 <Text size="xs" fw={700} c="dimmed" mt={4}>
-                  Monto Detraído
+                  Detracción
                 </Text>
                 <Title order={4} style={{ color: "#B45309" }}>
                   S/ {detractionAmount.toFixed(2)}
@@ -1245,15 +1265,16 @@ export const InvoiceCreatePage: React.FC = () => {
                 <Select
                   label="Código Servicio"
                   size="xs"
+                  searchable
                   data={detractionServices.map((d) => ({
                     value: d.code,
-                    label: `${d.code} - ${d.description}`,
+                    label: `${d.code} - ${d.name || d.description} (${d.default_percent || d.percent || 10}%)`,
                   }))}
                   value={qpDetractionCode}
                   onChange={(val) => {
                     setQpDetractionCode(val || "019");
                     const found = detractionServices.find((s) => s.code === val);
-                    if (found) setQpDetractionPercent(found.percent);
+                    if (found) setQpDetractionPercent(found.default_percent || found.percent || 10);
                   }}
                 />
                 <NumberInput

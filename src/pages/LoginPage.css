@@ -1,0 +1,92 @@
+/* Smooth cinematic Ken Burns animations for Login slideshow */
+
+@keyframes kb-pan-zoom-1 {
+  0% {
+    transform: scale(1) translate(0%, 0%);
+  }
+  100% {
+    transform: scale(1.15) translate(-2.5%, -2%);
+  }
+}
+
+@keyframes kb-pan-zoom-2 {
+  0% {
+    transform: scale(1.18) translate(-2%, -2%);
+  }
+  100% {
+    transform: scale(1.03) translate(2%, 1.5%);
+  }
+}
+
+@keyframes kb-pan-zoom-3 {
+  0% {
+    transform: scale(1.08) translate(-3.5%, 0%);
+  }
+  100% {
+    transform: scale(1.14) translate(3%, 0%);
+  }
+}
+
+@keyframes kb-pan-zoom-4 {
+  0% {
+    transform: scale(1.03) translate(0%, 2.5%);
+  }
+  100% {
+    transform: scale(1.16) translate(0%, -2.5%);
+  }
+}
+
+@keyframes kb-pan-zoom-5 {
+  0% {
+    transform: scale(1.15) translate(3%, -1.5%);
+  }
+  100% {
+    transform: scale(1.05) translate(-3%, 1.5%);
+  }
+}
+
+@keyframes kb-pan-zoom-6 {
+  0% {
+    transform: scale(1.06) translate(-2%, 2.5%);
+  }
+  100% {
+    transform: scale(1.17) translate(2.5%, -2%);
+  }
+}
+
+@keyframes kb-pan-zoom-7 {
+  0% {
+    transform: scale(1.16) translate(0%, 0%);
+  }
+  100% {
+    transform: scale(1.03) translate(0%, 0%);
+  }
+}
+
+.kb-anim-1 {
+  animation: kb-pan-zoom-1 9s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+.kb-anim-2 {
+  animation: kb-pan-zoom-2 9s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+.kb-anim-3 {
+  animation: kb-pan-zoom-3 9s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+.kb-anim-4 {
+  animation: kb-pan-zoom-4 9s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+.kb-anim-5 {
+  animation: kb-pan-zoom-5 9s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+.kb-anim-6 {
+  animation: kb-pan-zoom-6 9s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+.kb-anim-7 {
+  animation: kb-pan-zoom-7 9s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}

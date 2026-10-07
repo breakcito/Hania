@@ -467,16 +467,28 @@ export const ProductsPage: React.FC = () => {
         <Box>
           <Group grow mb="sm">
             <TextInput
-              label="Código Interno"
+              label="Código Interno / Referencia (Opcional)"
               placeholder="Ej. CARB-001, SERV-01"
               value={internalCode}
               onChange={(e) => setInternalCode(e.currentTarget.value)}
             />
             <TextInput
-              label="Código de Barras / SKU (Opcional)"
-              placeholder="Ej. 7751234567890"
-              value={barcode}
-              onChange={(e) => setBarcode(e.currentTarget.value)}
+              label={
+                <Group gap={6}>
+                  <span>Código de Producto SUNAT (UNSPSC)</span>
+                  <a
+                    href="https://www.sergestec.com/codigos"
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ fontSize: "11px", color: "#2563EB", textDecoration: "underline" }}
+                  >
+                    🔍 Buscar código
+                  </a>
+                </Group>
+              }
+              placeholder="Ej. 11111600 (Carbón y combustibles sólidos)"
+              value={sunatCode}
+              onChange={(e) => setSunatCode(e.currentTarget.value)}
             />
           </Group>
 
@@ -506,7 +518,7 @@ export const ProductsPage: React.FC = () => {
                 { value: "LTR", label: "LTR - Litros" },
                 { value: "MTR", label: "MTR - Metros" },
                 { value: "BX", label: "BX - Cajas" },
-                { value: "DZN", label: "DZN - Docenas" },
+                { value: "BG", label: "BG - Bolsas / Sacos" },
                 { value: "GLI", label: "GLI - Galones" },
               ]}
               value={unitCode}
@@ -559,42 +571,16 @@ export const ProductsPage: React.FC = () => {
               onChange={(val) => handlePriceChange(Number(val) || 0)}
               required
             />
-            <NumberInput
-              label="Costo de Compra (Ref.)"
-              decimalScale={4}
-              min={0}
-              value={costPrice}
-              onChange={(val) => setCostPrice(Number(val) || 0)}
-            />
           </Group>
 
           {/* Toggle Es Servicio vs Bien */}
-          <Group mb="md" mt="md">
+          <Group mb="md" mt="xs">
             <Switch
-              label="¿Es un servicio intangible? (No maneja stock)"
+              label="¿Es un servicio intangible? (No maneja inventario físico)"
               checked={isService}
               onChange={(e) => setIsService(e.currentTarget.checked)}
             />
           </Group>
-
-          {!isService && (
-            <Group grow mb="sm">
-              <NumberInput
-                label="Stock Inicial"
-                decimalScale={2}
-                min={0}
-                value={stock}
-                onChange={(val) => setStock(Number(val) || 0)}
-              />
-              <NumberInput
-                label="Stock Mínimo de Alerta"
-                decimalScale={2}
-                min={0}
-                value={stockMin}
-                onChange={(val) => setStockMin(Number(val) || 0)}
-              />
-            </Group>
-          )}
 
           {/* Sección de Detracción SUNAT */}
           <Paper withBorder p="sm" radius="md" mb="md" style={{ backgroundColor: "#F8FAFC" }}>
@@ -608,16 +594,17 @@ export const ProductsPage: React.FC = () => {
             {hasDetraction && (
               <Group grow mt="xs">
                 <Select
-                  label="Código SUNAT de Servicio / Bien"
+                  label="Código SUNAT de Servicio / Bien Sujeto a Detracción"
+                  searchable
                   data={detractionServices.map((d) => ({
                     value: d.code,
-                    label: `${d.code} - ${d.description} (${d.percent}%)`,
+                    label: `${d.code} - ${d.name || d.description} (${d.default_percent || d.percent || 10}%)`,
                   }))}
                   value={detractionCode}
                   onChange={(val) => {
                     setDetractionCode(val || "019");
                     const found = detractionServices.find((s) => s.code === val);
-                    if (found) setDetractionPercent(found.percent);
+                    if (found) setDetractionPercent(found.default_percent || found.percent || 10);
                   }}
                   required
                 />
@@ -625,7 +612,7 @@ export const ProductsPage: React.FC = () => {
                   label="Porcentaje de Detracción (%)"
                   decimalScale={2}
                   min={1}
-                  max={100}
+                  max={30}
                   value={detractionPercent}
                   onChange={(val) => setDetractionPercent(Number(val) || 10)}
                   required

@@ -41,7 +41,7 @@ import { apiRequest } from "../api/client";
 import { useApp } from "../context/AppContext";
 
 export const DashboardPage: React.FC = () => {
-  const { activeCompany, isTestMode } = useApp();
+  const { activeCompany, isTestMode, startDate, endDate } = useApp();
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -52,6 +52,8 @@ export const DashboardPage: React.FC = () => {
         const queryParams = new URLSearchParams();
         if (activeCompany) queryParams.set("company_id", activeCompany.id.toString());
         if (isTestMode) queryParams.set("is_test_mode", "true");
+        if (startDate) queryParams.set("start_date", startDate);
+        if (endDate) queryParams.set("end_date", endDate);
         const res = await apiRequest(`/dashboard/stats?${queryParams.toString()}`);
         setStats(res);
       } catch (err) {
@@ -61,7 +63,7 @@ export const DashboardPage: React.FC = () => {
       }
     }
     loadStats();
-  }, [activeCompany, isTestMode]);
+  }, [activeCompany, isTestMode, startDate, endDate]);
 
   if (loading || !stats) {
     return (

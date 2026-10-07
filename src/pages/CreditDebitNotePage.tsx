@@ -11,18 +11,17 @@ import {
   NumberInput,
   Button,
   Box,
-  Switch,
   Divider,
   Alert,
-  Badge,
+  ActionIcon,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { Send, Info, ArrowLeft } from "lucide-react";
+import { Send, Info, ArrowLeft, Search } from "lucide-react";
 import { apiRequest } from "../api/client";
 import { useApp } from "../context/AppContext";
 
 export const CreditDebitNotePage: React.FC = () => {
-  const { activeCompany, isTestMode, setIsTestMode } = useApp();
+  const { activeCompany, isTestMode } = useApp();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -51,6 +50,34 @@ export const CreditDebitNotePage: React.FC = () => {
   const [description, setDescription] = useState<string>("Por anulación del comprobante");
 
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isSearchingClient, setIsSearchingClient] = useState<boolean>(false);
+
+  const handleSearchClient = async () => {
+    const doc = clientDocNumber.trim();
+    if (!doc) return;
+    setIsSearchingClient(true);
+    try {
+      if (doc.length === 11) {
+        const res = await apiRequest(`/services/ruc/${doc}`);
+        if (res && res.razon_social) {
+          setClientName(res.razon_social);
+          setClientDocType("6");
+          notifications.show({ title: "RUC Encontrado", message: res.razon_social, color: "teal" });
+        }
+      } else if (doc.length === 8) {
+        const res = await apiRequest(`/services/dni/${doc}`);
+        if (res && res.nombre_completo) {
+          setClientName(res.nombre_completo);
+          setClientDocType("1");
+          notifications.show({ title: "DNI Encontrado", message: res.nombre_completo, color: "teal" });
+        }
+      }
+    } catch (err: any) {
+      notifications.show({ title: "Consulta Fallida", message: err.message || "No se encontraron datos", color: "orange" });
+    } finally {
+      setIsSearchingClient(false);
+    }
+  };
 
   // Cargar catálogos SUNAT
   useEffect(() => {
@@ -208,17 +235,6 @@ export const CreditDebitNotePage: React.FC = () => {
           </div>
         </Group>
 
-        <Group>
-          <Badge size="lg" color={isTestMode ? "orange" : "green"} variant="filled">
-            {isTestMode ? "Modo Prueba" : "Producción Real"}
-          </Badge>
-          <Switch
-            checked={isTestMode}
-            onChange={(e) => setIsTestMode(e.currentTarget.checked)}
-            label="Modo Prueba"
-            color="orange"
-          />
-        </Group>
       </Group>
 
       <Alert
@@ -351,6 +367,17 @@ export const CreditDebitNotePage: React.FC = () => {
                 value={clientDocNumber}
                 onChange={(e) => setClientDocNumber(e.currentTarget.value)}
                 required
+                rightSection={
+                  <ActionIcon
+                    variant="subtle"
+                    color="amber"
+                    onClick={handleSearchClient}
+                    loading={isSearchingClient}
+                    title="Consultar RUC / DNI"
+                  >
+                    <Search size={16} />
+                  </ActionIcon>
+                }
               />
             </Group>
 

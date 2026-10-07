@@ -14,7 +14,6 @@ import { CreditDebitNotePage } from "./pages/CreditDebitNotePage";
 import { ClientsPage } from "./pages/ClientsPage";
 import { ProductsPage } from "./pages/ProductsPage";
 import { CompaniesPage } from "./pages/CompaniesPage";
-import { UsersPage } from "./pages/UsersPage";
 import { BankAccountsPage } from "./pages/BankAccountsPage";
 import { SeriesPage } from "./pages/SeriesPage";
 import { ReportsPage } from "./pages/ReportsPage";
@@ -129,11 +128,7 @@ export function App() {
 
           <Route
             path="/usuarios"
-            element={
-              <ProtectedRoute>
-                <UsersPage />
-              </ProtectedRoute>
-            }
+            element={<Navigate to="/trabajadores" replace />}
           />
 
           <Route
