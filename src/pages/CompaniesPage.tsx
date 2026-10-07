@@ -13,7 +13,7 @@ import {
   ActionIcon,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { Plus, Search, CheckCircle, Trash2 } from "lucide-react";
+import { Plus, Search, CheckCircle, Trash2, RotateCw } from "lucide-react";
 import { apiRequest } from "../api/client";
 import { useApp } from "../context/AppContext";
 
@@ -23,6 +23,7 @@ export const CompaniesPage: React.FC = () => {
   const [opened, setOpened] = useState(false);
   const [companyToDelete, setCompanyToDelete] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [ruc, setRuc] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [trademarkName, setTrademarkName] = useState("");
@@ -109,6 +110,27 @@ export const CompaniesPage: React.FC = () => {
     }
   };
 
+  const handleSyncFactos = async () => {
+    setIsSyncing(true);
+    try {
+      const synced = await apiRequest("/companies/sync-factos", { method: "POST" });
+      notifications.show({
+        title: "Sincronización Exitosa",
+        message: `Se sincronizaron ${synced.length} empresa(s) con Factos API`,
+        color: "teal",
+      });
+      await refreshCompanies();
+    } catch (err: any) {
+      notifications.show({
+        title: "Error al sincronizar",
+        message: err.message || "Fallo al comunicar con Factos API",
+        color: "red",
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <Box>
       <Group justify="space-between" mb="lg">
@@ -121,14 +143,25 @@ export const CompaniesPage: React.FC = () => {
           </Text>
         </div>
 
-        <Button
-          leftSection={<Plus size={16} />}
-          color="amber"
-          style={{ backgroundColor: "#D97706" }}
-          onClick={() => setOpened(true)}
-        >
-          Registrar Nueva Empresa
-        </Button>
+        <Group>
+          <Button
+            leftSection={<RotateCw size={16} />}
+            variant="default"
+            onClick={handleSyncFactos}
+            loading={isSyncing}
+          >
+            Sincronizar con Factos API
+          </Button>
+
+          <Button
+            leftSection={<Plus size={16} />}
+            color="amber"
+            style={{ backgroundColor: "#D97706" }}
+            onClick={() => setOpened(true)}
+          >
+            Registrar Nueva Empresa
+          </Button>
+        </Group>
       </Group>
 
       <Paper withBorder radius="md" style={{ backgroundColor: "#FFFFFF", overflow: "hidden" }}>

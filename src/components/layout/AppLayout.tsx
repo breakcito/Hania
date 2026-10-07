@@ -27,6 +27,10 @@ import {
   LogOut,
   AlertTriangle,
   Flame,
+  Landmark,
+  Hash,
+  BarChart3,
+  UserCheck,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useApp } from "../../context/AppContext";
@@ -43,8 +47,13 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
     { label: "Guías de Remisión (GRE)", path: "/guias-remision", icon: Truck },
     { label: "Notas de Crédito / Débito", path: "/notas-credito-debito", icon: FileDiff },
     { label: "Historial de Comprobantes", path: "/comprobantes", icon: FileSpreadsheet },
+    { label: "Centro de Reportes Excel", path: "/reportes", icon: BarChart3 },
+    { label: "Cuentas Bancarias", path: "/cuentas-bancarias", icon: Landmark },
+    { label: "Series y Correlativos", path: "/series", icon: Hash },
     { label: "Clientes Frecuentes", path: "/clientes", icon: Users },
     { label: "Catálogo de Productos", path: "/productos", icon: Package },
+    { label: "Personal / Vendedores", path: "/trabajadores", icon: UserCheck },
+    { label: "Vehículos / Flota GRE", path: "/vehiculos", icon: Truck },
     { label: "Empresas (Multiempresa)", path: "/empresas", icon: Building2 },
     { label: "Usuarios del Sistema", path: "/usuarios", icon: UserPlus },
   ];

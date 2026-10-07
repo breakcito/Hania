@@ -28,6 +28,8 @@ import {
   Send,
   AlertTriangle,
   Info,
+  UserPlus,
+  PackagePlus,
 } from "lucide-react";
 import { apiRequest } from "../api/client";
 import { useApp } from "../context/AppContext";
@@ -81,6 +83,42 @@ export const InvoiceCreatePage: React.FC = () => {
   const [confirmOpened, setConfirmOpened] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
+  // Series y Correlativos dinámicos
+  const [availableSeries, setAvailableSeries] = useState<any[]>([]);
+  const [nextCorrelativePreview, setNextCorrelativePreview] = useState<string>("");
+
+  // Catálogos SUNAT y Cuentas Bancarias
+  const [detractionServices, setDetractionServices] = useState<any[]>([]);
+
+  // Vendedores y Personal
+  const [sellers, setSellers] = useState<any[]>([]);
+  const [selectedSellerId, setSelectedSellerId] = useState<string | null>(null);
+
+  // Clientes frecuentes
+  const [catalogClients, setCatalogClients] = useState<any[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+
+  // Modales Rápidos
+  const [quickClientModal, setQuickClientModal] = useState<boolean>(false);
+  const [qcDocType, setQcDocType] = useState<string>("6");
+  const [qcDocNumber, setQcDocNumber] = useState<string>("");
+  const [qcName, setQcName] = useState<string>("");
+  const [qcAddress, setQcAddress] = useState<string>("");
+  const [qcEmail, setQcEmail] = useState<string>("");
+  const [qcSearching, setQcSearching] = useState<boolean>(false);
+  const [qcSaving, setQcSaving] = useState<boolean>(false);
+
+  const [quickProductModal, setQuickProductModal] = useState<boolean>(false);
+  const [qpCode, setQpCode] = useState<string>("");
+  const [qpDesc, setQpDesc] = useState<string>("");
+  const [qpUnit, setQpUnit] = useState<string>("NIU");
+  const [qpValue, setQpValue] = useState<number>(100);
+  const [qpPrice, setQpPrice] = useState<number>(118);
+  const [qpHasDetraction, setQpHasDetraction] = useState<boolean>(false);
+  const [qpDetractionCode, setQpDetractionCode] = useState<string>("019");
+  const [qpDetractionPercent, setQpDetractionPercent] = useState<number>(10);
+  const [qpSaving, setQpSaving] = useState<boolean>(false);
+
   // Cargar catálogo de productos de la empresa
   useEffect(() => {
     async function loadCatalog() {
@@ -95,16 +133,64 @@ export const InvoiceCreatePage: React.FC = () => {
     loadCatalog();
   }, [activeCompany]);
 
-  // Ajustar serie sugerida al cambiar tipo de documento
+  // Cargar series, catálogos, cuentas bancarias, clientes y vendedores
   useEffect(() => {
-    if (typeCode === "01") {
-      setSeries("F001");
-      setClientDocType("6");
-    } else {
-      setSeries("B001");
-      setClientDocType("1");
+    async function loadInitialData() {
+      if (!activeCompany) return;
+      try {
+        const [seriesData, catData, bankData, clientsData, employeesData] = await Promise.all([
+          apiRequest(`/series?company_id=${activeCompany.id}&document_type=${typeCode}`),
+          apiRequest("/catalogs/sunat"),
+          apiRequest(`/bank-accounts?company_id=${activeCompany.id}`),
+          apiRequest(`/clients?company_id=${activeCompany.id}`),
+          apiRequest(`/employees?company_id=${activeCompany.id}`),
+        ]);
+        setAvailableSeries(seriesData);
+        if (seriesData.length > 0) {
+          setSeries(seriesData[0].series);
+        } else {
+          setSeries(typeCode === "01" ? "F001" : "B001");
+        }
+        setDetractionServices(catData.detraction_services || []);
+        setCatalogClients(clientsData || []);
+        setSellers(employeesData || []);
+
+        const bnAcc = bankData.find((b: any) => b.account_type === "detraccion");
+        if (bnAcc) {
+          setDetractionAccount(bnAcc.account_number);
+        } else if (activeCompany.bn_account) {
+          setDetractionAccount(activeCompany.bn_account);
+        }
+
+        if (typeCode === "01") {
+          setClientDocType("6");
+        } else {
+          setClientDocType("1");
+        }
+      } catch (err) {
+        console.error("Error loading series/catalogs:", err);
+      }
     }
-  }, [typeCode]);
+    loadInitialData();
+  }, [activeCompany, typeCode]);
+
+  // Consultar próximo correlativo en tiempo real
+  useEffect(() => {
+    async function fetchNextCorrelative() {
+      if (!activeCompany || !series) return;
+      try {
+        const res = await apiRequest(
+          `/series/next-correlative?company_id=${activeCompany.id}&document_type=${typeCode}&series=${series}`
+        );
+        if (res && res.formatted_number) {
+          setNextCorrelativePreview(res.formatted_number);
+        }
+      } catch {
+        setNextCorrelativePreview(`${series}-????????`);
+      }
+    }
+    fetchNextCorrelative();
+  }, [activeCompany, typeCode, series]);
 
   // Búsqueda en SUNAT / RENIEC
   const handleLookupClient = async () => {
@@ -150,10 +236,107 @@ export const InvoiceCreatePage: React.FC = () => {
     }
   };
 
+  // Seleccionar cliente frecuente
+  const handleSelectClient = (clientId: string | null) => {
+    setSelectedClientId(clientId);
+    if (!clientId) return;
+    const c = catalogClients.find((x) => x.id.toString() === clientId);
+    if (!c) return;
+    setClientDocType(c.doc_type);
+    setClientDocNumber(c.doc_number);
+    setClientName(c.name);
+    setClientAddress(c.address || "");
+    setClientEmail(c.email || "");
+    if (c.credit_days_default && c.credit_days_default > 0) {
+      setPaymentMethod("credito");
+      const d = new Date();
+      d.setDate(d.getDate() + c.credit_days_default);
+      setCreditDueDate(d.toISOString().split("T")[0]);
+      notifications.show({
+        title: "Condición a Crédito",
+        message: `Aplicado plazo de ${c.credit_days_default} días registrado para ${c.name}`,
+        color: "cyan",
+      });
+    }
+  };
+
+  // Guardado rápido de cliente desde modal
+  const handleQuickClientSave = async () => {
+    if (!qcDocNumber.trim() || !qcName.trim() || !activeCompany) return;
+    setQcSaving(true);
+    try {
+      const saved = await apiRequest("/clients", {
+        method: "POST",
+        body: JSON.stringify({
+          company_id: activeCompany.id,
+          doc_type: qcDocType,
+          doc_number: qcDocNumber.trim(),
+          name: qcName.trim(),
+          address: qcAddress.trim() || undefined,
+          email: qcEmail.trim() || undefined,
+        }),
+      });
+      setCatalogClients((prev) => [...prev, saved]);
+      setSelectedClientId(saved.id.toString());
+      setClientDocType(saved.doc_type);
+      setClientDocNumber(saved.doc_number);
+      setClientName(saved.name);
+      setClientAddress(saved.address || "");
+      setClientEmail(saved.email || "");
+      setQuickClientModal(false);
+      notifications.show({ title: "Cliente Registrado", message: `${saved.name} listo para facturar`, color: "teal" });
+    } catch (err: any) {
+      notifications.show({ title: "Error", message: err.message, color: "red" });
+    } finally {
+      setQcSaving(false);
+    }
+  };
+
+  // Guardado rápido de producto desde modal
+  const handleQuickProductSave = async () => {
+    if (!qpDesc.trim() || !activeCompany) return;
+    setQpSaving(true);
+    try {
+      const saved = await apiRequest("/products", {
+        method: "POST",
+        body: JSON.stringify({
+          company_id: activeCompany.id,
+          internal_code: qpCode.trim() || undefined,
+          description: qpDesc.trim(),
+          unit_code: qpUnit,
+          unit_value: qpValue,
+          unit_price: qpPrice,
+          has_detraction: qpHasDetraction,
+          detraction_code: qpHasDetraction ? qpDetractionCode : undefined,
+          detraction_percent: qpHasDetraction ? qpDetractionPercent : undefined,
+        }),
+      });
+      setCatalogProducts((prev) => [...prev, saved]);
+      handleAddFromCatalog(saved.id.toString());
+      setQuickProductModal(false);
+      notifications.show({ title: "Producto Creado", message: `${saved.description} agregado a la factura`, color: "teal" });
+    } catch (err: any) {
+      notifications.show({ title: "Error", message: err.message, color: "red" });
+    } finally {
+      setQpSaving(false);
+    }
+  };
+
   // Agregar ítem desde el catálogo
   const handleAddFromCatalog = (productId: string) => {
     const prod = catalogProducts.find((p) => p.id.toString() === productId);
     if (!prod) return;
+
+    if (prod.has_detraction) {
+      setHasDetraction(true);
+      if (prod.detraction_code) setDetractionCode(prod.detraction_code);
+      if (prod.detraction_percent) setDetractionPercent(Number(prod.detraction_percent));
+      notifications.show({
+        title: "Detracción Automática",
+        message: `El producto ${prod.description} tiene detracción del ${prod.detraction_percent}%`,
+        color: "orange",
+      });
+    }
 
     const qty = 1;
     const unitVal = Number(prod.unit_value);
@@ -252,6 +435,8 @@ export const InvoiceCreatePage: React.FC = () => {
           address: clientAddress.trim() || undefined,
           email: clientEmail.trim() || undefined,
         },
+        seller_name: sellers.find((s) => s.id.toString() === selectedSellerId)?.full_name || undefined,
+        employee_id: selectedSellerId ? Number(selectedSellerId) : undefined,
         items: items.map((it) => ({
           internal_code: it.internal_code || undefined,
           description: it.description,
@@ -367,12 +552,22 @@ export const InvoiceCreatePage: React.FC = () => {
             />
           </Grid.Col>
           <Grid.Col span={{ base: 6, sm: 2 }}>
-            <TextInput
+            <Select
               label="Serie"
               value={series}
-              onChange={(e) => setSeries(e.currentTarget.value.toUpperCase())}
-              maxLength={4}
+              onChange={(val) => val && setSeries(val.toUpperCase())}
+              data={
+                availableSeries.length > 0
+                  ? availableSeries.map((s) => ({ value: s.series, label: `${s.series} (${s.description || 'Principal'})` }))
+                  : [{ value: typeCode === "01" ? "F001" : "B001", label: typeCode === "01" ? "F001" : "B001" }]
+              }
+              allowDeselect={false}
             />
+            {nextCorrelativePreview && (
+              <Text size="10px" c="teal.7" fw={700} mt={2}>
+                Próximo: {nextCorrelativePreview}
+              </Text>
+            )}
           </Grid.Col>
           <Grid.Col span={{ base: 6, sm: 2 }}>
             <Select
@@ -394,7 +589,7 @@ export const InvoiceCreatePage: React.FC = () => {
               onChange={(e) => setIssueDate(e.currentTarget.value)}
             />
           </Grid.Col>
-          <Grid.Col span={{ base: 6, sm: 2.5 }}>
+          <Grid.Col span={{ base: 6, sm: 2 }}>
             <Select
               label="Condición de Pago"
               value={paymentMethod}
@@ -404,6 +599,19 @@ export const InvoiceCreatePage: React.FC = () => {
                 { value: "credito", label: "Al Crédito" },
               ]}
               allowDeselect={false}
+            />
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, sm: 2.5 }}>
+            <Select
+              label="Vendedor / Responsable"
+              placeholder="Asignar vendedor"
+              clearable
+              data={sellers.map((s) => ({
+                value: s.id.toString(),
+                label: s.full_name,
+              }))}
+              value={selectedSellerId}
+              onChange={setSelectedSellerId}
             />
           </Grid.Col>
         </Grid>
@@ -430,9 +638,37 @@ export const InvoiceCreatePage: React.FC = () => {
 
       {/* Tarjeta 2: Cliente */}
       <Paper withBorder p="md" radius="md" mb="md" style={{ backgroundColor: "#FFFFFF" }}>
-        <Title order={5} mb="sm" style={{ color: "#0F172A" }}>
-          2. Datos del Cliente / Comprador
-        </Title>
+        <Group justify="space-between" mb="sm">
+          <Title order={5} style={{ color: "#0F172A" }}>
+            2. Datos del Cliente / Comprador
+          </Title>
+          <Group>
+            {catalogClients.length > 0 && (
+              <Select
+                placeholder="⚡ Jalar cliente frecuente..."
+                size="xs"
+                clearable
+                searchable
+                data={catalogClients.map((c) => ({
+                  value: c.id.toString(),
+                  label: `${c.doc_number} - ${c.name}`,
+                }))}
+                value={selectedClientId}
+                onChange={handleSelectClient}
+                style={{ width: 280 }}
+              />
+            )}
+            <Button
+              size="xs"
+              variant="light"
+              color="blue"
+              leftSection={<UserPlus size={14} />}
+              onClick={() => setQuickClientModal(true)}
+            >
+              + Nuevo Cliente Rápido
+            </Button>
+          </Group>
+        </Group>
         <Grid>
           <Grid.Col span={{ base: 12, sm: 3 }}>
             <Select
@@ -512,16 +748,27 @@ export const InvoiceCreatePage: React.FC = () => {
           <Group>
             {catalogProducts.length > 0 && (
               <Select
-                placeholder="Cargar de catálogo rápido..."
+                placeholder="⚡ Catálogo de productos..."
                 size="xs"
+                searchable
+                clearable
                 data={catalogProducts.map((p) => ({
                   value: p.id.toString(),
-                  label: `${p.description} (${p.unit_code})`,
+                  label: `${p.internal_code ? `[${p.internal_code}] ` : ""}${p.description} (${p.unit_code})`,
                 }))}
                 onChange={(val) => val && handleAddFromCatalog(val)}
-                style={{ width: 260 }}
+                style={{ width: 280 }}
               />
             )}
+            <Button
+              size="xs"
+              variant="light"
+              color="indigo"
+              leftSection={<PackagePlus size={14} />}
+              onClick={() => setQuickProductModal(true)}
+            >
+              + Nuevo Producto Rápido
+            </Button>
             <Button
               size="xs"
               variant="light"
@@ -529,7 +776,7 @@ export const InvoiceCreatePage: React.FC = () => {
               leftSection={<Plus size={14} />}
               onClick={handleAddBlankItem}
             >
-              Agregar Fila
+              Fila Vacía
             </Button>
           </Group>
         </Group>
@@ -640,12 +887,28 @@ export const InvoiceCreatePage: React.FC = () => {
                 <Select
                   label="Código de Bien Sujeto a Detracción"
                   value={detractionCode}
-                  onChange={(val) => val && setDetractionCode(val)}
-                  data={[
-                    { value: "023", label: "023 - Minerales no metálicos / Carbón" },
-                    { value: "004", label: "004 - Recursos minerales y metálicos" },
-                    { value: "022", label: "022 - Otros servicios gravados con IGV" },
-                  ]}
+                  onChange={(val) => {
+                    if (val) {
+                      setDetractionCode(val);
+                      const svc = detractionServices.find((s) => s.code === val);
+                      if (svc && svc.default_percent) {
+                        setDetractionPercent(svc.default_percent);
+                      }
+                    }
+                  }}
+                  data={
+                    detractionServices.length > 0
+                      ? detractionServices.map((s) => ({
+                          value: s.code,
+                          label: `${s.code} - ${s.name} (${s.default_percent}%)`,
+                        }))
+                      : [
+                          { value: "023", label: "023 - Recursos hidrobiológicos (4%)" },
+                          { value: "025", label: "025 - Minerales y carbón (10%)" },
+                          { value: "024", label: "024 - Mantenimiento y servicios (12%)" },
+                          { value: "037", label: "037 - Transporte terrestre (4%)" },
+                        ]
+                  }
                   allowDeselect={false}
                 />
               </Grid.Col>
@@ -793,6 +1056,224 @@ export const InvoiceCreatePage: React.FC = () => {
               style={{ backgroundColor: "#D97706" }}
             >
               Sí, emitir ahora
+            </Button>
+          </Group>
+        </Box>
+      </Modal>
+
+      {/* Modal Rápido: Nuevo Cliente */}
+      <Modal
+        opened={quickClientModal}
+        onClose={() => setQuickClientModal(false)}
+        title={
+          <Group>
+            <UserPlus size={18} color="#2563EB" />
+            <Text fw={700} size="sm">
+              Agregar Cliente Rápido
+            </Text>
+          </Group>
+        }
+        size="md"
+        centered
+      >
+        <Box>
+          <Group grow mb="sm">
+            <Select
+              label="Tipo Documento"
+              size="xs"
+              data={[
+                { value: "6", label: "RUC" },
+                { value: "1", label: "DNI" },
+              ]}
+              value={qcDocType}
+              onChange={(val) => setQcDocType(val || "6")}
+            />
+            <TextInput
+              label="Número de Documento"
+              size="xs"
+              placeholder="Ej. 20123456789"
+              value={qcDocNumber}
+              onChange={(e) => setQcDocNumber(e.currentTarget.value)}
+              rightSection={
+                <ActionIcon
+                  size="xs"
+                  variant="subtle"
+                  color="blue"
+                  loading={qcSearching}
+                  onClick={async () => {
+                    if (!qcDocNumber.trim()) return;
+                    setQcSearching(true);
+                    try {
+                      if (qcDocType === "6") {
+                        const r = await apiRequest(`/services/ruc/${qcDocNumber.trim()}`);
+                        if (r.data) {
+                          setQcName(r.data.razon_social || "");
+                          setQcAddress(r.data.direccion || "");
+                        }
+                      } else {
+                        const r = await apiRequest(`/services/dni/${qcDocNumber.trim()}`);
+                        if (r.data) {
+                          setQcName(`${r.data.nombres || ""} ${r.data.apellido_paterno || ""}`.trim());
+                        }
+                      }
+                    } catch {
+                      notifications.show({ title: "No encontrado", message: "Complete los datos manualmente", color: "orange" });
+                    } finally {
+                      setQcSearching(false);
+                    }
+                  }}
+                >
+                  <Search size={14} />
+                </ActionIcon>
+              }
+            />
+          </Group>
+          <TextInput
+            label="Razón Social / Nombre"
+            size="xs"
+            placeholder="Nombre completo"
+            value={qcName}
+            onChange={(e) => setQcName(e.currentTarget.value)}
+            mb="sm"
+            required
+          />
+          <TextInput
+            label="Dirección Fiscal"
+            size="xs"
+            placeholder="Dirección fiscal"
+            value={qcAddress}
+            onChange={(e) => setQcAddress(e.currentTarget.value)}
+            mb="sm"
+          />
+          <TextInput
+            label="Correo de Facturación (Opcional)"
+            size="xs"
+            placeholder="correo@cliente.com"
+            value={qcEmail}
+            onChange={(e) => setQcEmail(e.currentTarget.value)}
+            mb="md"
+          />
+          <Group justify="flex-end">
+            <Button size="xs" variant="default" onClick={() => setQuickClientModal(false)}>
+              Cancelar
+            </Button>
+            <Button size="xs" color="blue" loading={qcSaving} onClick={handleQuickClientSave}>
+              Guardar y Usar
+            </Button>
+          </Group>
+        </Box>
+      </Modal>
+
+      {/* Modal Rápido: Nuevo Producto */}
+      <Modal
+        opened={quickProductModal}
+        onClose={() => setQuickProductModal(false)}
+        title={
+          <Group>
+            <PackagePlus size={18} color="#4F46E5" />
+            <Text fw={700} size="sm">
+              Agregar Producto o Servicio Rápido
+            </Text>
+          </Group>
+        }
+        size="md"
+        centered
+      >
+        <Box>
+          <Group grow mb="sm">
+            <TextInput
+              label="Código Interno (Opcional)"
+              size="xs"
+              placeholder="Ej. CARB-002"
+              value={qpCode}
+              onChange={(e) => setQpCode(e.currentTarget.value)}
+            />
+            <Select
+              label="Unidad de Medida"
+              size="xs"
+              data={[
+                { value: "NIU", label: "NIU - Unidades" },
+                { value: "ZZ", label: "ZZ - Servicios" },
+                { value: "TNE", label: "TNE - Toneladas" },
+                { value: "KGM", label: "KGM - Kilos" },
+                { value: "LTR", label: "LTR - Litros" },
+              ]}
+              value={qpUnit}
+              onChange={(val) => setQpUnit(val || "NIU")}
+            />
+          </Group>
+          <TextInput
+            label="Descripción"
+            size="xs"
+            placeholder="Descripción del bien o servicio"
+            value={qpDesc}
+            onChange={(e) => setQpDesc(e.currentTarget.value)}
+            mb="sm"
+            required
+          />
+          <Group grow mb="sm">
+            <NumberInput
+              label="Valor Unit. (Sin IGV)"
+              size="xs"
+              decimalScale={4}
+              value={qpValue}
+              onChange={(val) => {
+                const v = Number(val) || 0;
+                setQpValue(v);
+                setQpPrice(Number((v * 1.18).toFixed(4)));
+              }}
+            />
+            <NumberInput
+              label="Precio Unit. (Con IGV)"
+              size="xs"
+              decimalScale={4}
+              value={qpPrice}
+              onChange={(val) => {
+                const p = Number(val) || 0;
+                setQpPrice(p);
+                setQpValue(Number((p / 1.18).toFixed(4)));
+              }}
+            />
+          </Group>
+          <Paper withBorder p="xs" radius="md" mb="md" style={{ backgroundColor: "#F8FAFC" }}>
+            <Switch
+              label="¿Sujeto a Detracción SUNAT?"
+              size="xs"
+              checked={qpHasDetraction}
+              onChange={(e) => setQpHasDetraction(e.currentTarget.checked)}
+              mb={qpHasDetraction ? "xs" : 0}
+            />
+            {qpHasDetraction && (
+              <Group grow mt="xs">
+                <Select
+                  label="Código Servicio"
+                  size="xs"
+                  data={detractionServices.map((d) => ({
+                    value: d.code,
+                    label: `${d.code} - ${d.description}`,
+                  }))}
+                  value={qpDetractionCode}
+                  onChange={(val) => {
+                    setQpDetractionCode(val || "019");
+                    const found = detractionServices.find((s) => s.code === val);
+                    if (found) setQpDetractionPercent(found.percent);
+                  }}
+                />
+                <NumberInput
+                  label="% Detracción"
+                  size="xs"
+                  value={qpDetractionPercent}
+                  onChange={(val) => setQpDetractionPercent(Number(val) || 10)}
+                />
+              </Group>
+            )}
+          </Paper>
+          <Group justify="flex-end">
+            <Button size="xs" variant="default" onClick={() => setQuickProductModal(false)}>
+              Cancelar
+            </Button>
+            <Button size="xs" color="indigo" loading={qpSaving} onClick={handleQuickProductSave}>
+              Guardar y Agregar
             </Button>
           </Group>
         </Box>

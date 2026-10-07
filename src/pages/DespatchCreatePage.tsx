@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Paper,
@@ -58,6 +58,82 @@ export const DespatchCreatePage: React.FC = () => {
   const [driverLicense, setDriverLicense] = useState("");
   const [vehiclePlate, setVehiclePlate] = useState("");
   const [secondaryPlate, setSecondaryPlate] = useState("");
+
+  // Maestros frecuentes para jalar en 1 clic
+  const [clients, setClients] = useState<any[]>([]);
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
+
+  // Cargar clientes, trabajadores/choferes y vehículos de la empresa
+  useEffect(() => {
+    async function loadData() {
+      if (!activeCompany) return;
+      try {
+        const [cList, eList, vList] = await Promise.all([
+          apiRequest(`/clients?company_id=${activeCompany.id}`),
+          apiRequest(`/employees?company_id=${activeCompany.id}`),
+          apiRequest(`/vehicles?company_id=${activeCompany.id}`),
+        ]);
+        setClients(cList || []);
+        setDrivers(eList || []);
+        setVehicles(vList || []);
+      } catch (e) {
+        console.error("Error loading master data for GRE:", e);
+      }
+    }
+    loadData();
+  }, [activeCompany]);
+
+  // Jalar destinatario
+  const handleSelectRecipient = (clientId: string | null) => {
+    setSelectedClientId(clientId);
+    if (!clientId) return;
+    const c = clients.find((x) => x.id.toString() === clientId);
+    if (!c) return;
+    setRecipientRuc(c.doc_number);
+    setRecipientName(c.name);
+    if (c.address) setDestAddress(c.address);
+    if (c.ubigeo) setDestUbigeo(c.ubigeo);
+    notifications.show({
+      title: "Destinatario Cargado",
+      message: `${c.name} asignado con su dirección fiscal`,
+      color: "teal",
+    });
+  };
+
+  // Jalar chofer
+  const handleSelectDriver = (driverId: string | null) => {
+    setSelectedDriverId(driverId);
+    if (!driverId) return;
+    const d = drivers.find((x) => x.id.toString() === driverId);
+    if (!d) return;
+    setDriverDni(d.document_number);
+    setDriverName(d.full_name);
+    if (d.license_number) setDriverLicense(d.license_number);
+    notifications.show({
+      title: "Conductor Asignado",
+      message: `${d.full_name} (${d.license_number || "Sin brevete"})`,
+      color: "teal",
+    });
+  };
+
+  // Jalar vehículo
+  const handleSelectVehicle = (vehicleId: string | null) => {
+    setSelectedVehicleId(vehicleId);
+    if (!vehicleId) return;
+    const v = vehicles.find((x) => x.id.toString() === vehicleId);
+    if (!v) return;
+    setVehiclePlate(v.plate_number);
+    if (v.secondary_plate) setSecondaryPlate(v.secondary_plate);
+    notifications.show({
+      title: "Vehículo Asignado",
+      message: `Placa ${v.plate_number} ${v.secondary_plate ? `+ Carreta ${v.secondary_plate}` : ""}`,
+      color: "teal",
+    });
+  };
 
   // Ítems trasladados
   const [items, setItems] = useState([
@@ -278,9 +354,26 @@ export const DespatchCreatePage: React.FC = () => {
 
       {/* Destinatario */}
       <Paper withBorder p="md" radius="md" mb="md" style={{ backgroundColor: "#FFFFFF" }}>
-        <Title order={5} mb="sm" style={{ color: "#0F172A" }}>
-          3. Datos del Destinatario
-        </Title>
+        <Group justify="space-between" mb="sm">
+          <Title order={5} style={{ color: "#0F172A" }}>
+            3. Datos del Destinatario
+          </Title>
+          {clients.length > 0 && (
+            <Select
+              placeholder="⚡ Jalar cliente frecuente..."
+              size="xs"
+              clearable
+              searchable
+              data={clients.map((c) => ({
+                value: c.id.toString(),
+                label: `${c.doc_number} - ${c.name}`,
+              }))}
+              value={selectedClientId}
+              onChange={handleSelectRecipient}
+              style={{ width: 280 }}
+            />
+          )}
+        </Group>
         <Grid>
           <Grid.Col span={{ base: 12, sm: 4 }}>
             <TextInput
@@ -302,9 +395,45 @@ export const DespatchCreatePage: React.FC = () => {
 
       {/* Datos del Transporte */}
       <Paper withBorder p="md" radius="md" mb="md" style={{ backgroundColor: "#FFFFFF" }}>
-        <Title order={5} mb="sm" style={{ color: "#0F172A" }}>
-          4. Datos del {transportMode === "01" ? "Transportista Público" : "Vehículo y Conductor (Transporte Privado)"}
-        </Title>
+        <Group justify="space-between" mb="sm">
+          <Title order={5} style={{ color: "#0F172A" }}>
+            4. Datos del {transportMode === "01" ? "Transportista Público" : "Vehículo y Conductor (Transporte Privado)"}
+          </Title>
+          {transportMode === "02" && (
+            <Group>
+              {drivers.length > 0 && (
+                <Select
+                  placeholder="⚡ Jalar Chofer..."
+                  size="xs"
+                  clearable
+                  searchable
+                  data={drivers.map((d) => ({
+                    value: d.id.toString(),
+                    label: `${d.full_name} (${d.job_title})`,
+                  }))}
+                  value={selectedDriverId}
+                  onChange={handleSelectDriver}
+                  style={{ width: 220 }}
+                />
+              )}
+              {vehicles.length > 0 && (
+                <Select
+                  placeholder="⚡ Jalar Vehículo..."
+                  size="xs"
+                  clearable
+                  searchable
+                  data={vehicles.map((v) => ({
+                    value: v.id.toString(),
+                    label: `Placa: ${v.plate_number} ${v.brand ? `(${v.brand})` : ""}`,
+                  }))}
+                  value={selectedVehicleId}
+                  onChange={handleSelectVehicle}
+                  style={{ width: 220 }}
+                />
+              )}
+            </Group>
+          )}
+        </Group>
         {transportMode === "01" ? (
           <Grid>
             <Grid.Col span={{ base: 12, sm: 4 }}>

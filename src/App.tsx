@@ -15,6 +15,11 @@ import { ClientsPage } from "./pages/ClientsPage";
 import { ProductsPage } from "./pages/ProductsPage";
 import { CompaniesPage } from "./pages/CompaniesPage";
 import { UsersPage } from "./pages/UsersPage";
+import { BankAccountsPage } from "./pages/BankAccountsPage";
+import { SeriesPage } from "./pages/SeriesPage";
+import { ReportsPage } from "./pages/ReportsPage";
+import { EmployeesPage } from "./pages/EmployeesPage";
+import { VehiclesPage } from "./pages/VehiclesPage";
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -127,6 +132,51 @@ export function App() {
             element={
               <ProtectedRoute>
                 <UsersPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/cuentas-bancarias"
+            element={
+              <ProtectedRoute>
+                <BankAccountsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/series"
+            element={
+              <ProtectedRoute>
+                <SeriesPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/reportes"
+            element={
+              <ProtectedRoute>
+                <ReportsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/trabajadores"
+            element={
+              <ProtectedRoute>
+                <EmployeesPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/vehiculos"
+            element={
+              <ProtectedRoute>
+                <VehiclesPage />
               </ProtectedRoute>
             }
           />

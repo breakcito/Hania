@@ -10,13 +10,26 @@ import {
   NumberInput,
   Select,
   Modal,
+  Badge,
   Loader,
   Center,
   Box,
   ActionIcon,
+  Switch,
+  SimpleGrid,
+  Card,
+  Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { Plus, Trash2 } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Package,
+  Search,
+  AlertTriangle,
+  Boxes,
+  Zap,
+} from "lucide-react";
 import { apiRequest } from "../api/client";
 import { useApp } from "../context/AppContext";
 
@@ -27,20 +40,51 @@ export const ProductsPage: React.FC = () => {
   const [productToDelete, setProductToDelete] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Filtros
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterCategory, setFilterCategory] = useState<string | null>(null);
+  const [filterType, setFilterType] = useState<string | null>(null); // "service", "goods"
+
+  // Catálogos SUNAT para detracciones
+  const [detractionServices, setDetractionServices] = useState<any[]>([]);
+
   // Modal
   const [opened, setOpened] = useState(false);
-  const [code, setCode] = useState("");
-  const [description, setDescription] = useState("");
-  const [unitCode, setUnitCode] = useState("TNE");
-  const [unitValue, setUnitValue] = useState<number>(500);
   const [isSaving, setIsSaving] = useState(false);
 
-  const loadProducts = async () => {
+  // Form State
+  const [internalCode, setInternalCode] = useState("");
+  const [barcode, setBarcode] = useState("");
+  const [sunatCode, setSunatCode] = useState("");
+  const [description, setDescription] = useState("");
+  const [categoryName, setCategoryName] = useState("General");
+  const [unitCode, setUnitCode] = useState("NIU");
+  const [currency, setCurrency] = useState("PEN");
+  const [isService, setIsService] = useState(false);
+
+  const [unitValue, setUnitValue] = useState<number>(100); // Sin IGV
+  const [unitPrice, setUnitPrice] = useState<number>(118); // Con IGV
+  const [costPrice, setCostPrice] = useState<number>(0);
+  const [igvType, setIgvType] = useState("10");
+
+  const [hasDetraction, setHasDetraction] = useState(false);
+  const [detractionCode, setDetractionCode] = useState("019");
+  const [detractionPercent, setDetractionPercent] = useState<number>(10);
+
+  const [stock, setStock] = useState<number>(0);
+  const [stockMin, setStockMin] = useState<number>(5);
+  const [notes, setNotes] = useState("");
+
+  const loadInitialData = async () => {
     if (!activeCompany) return;
     setLoading(true);
     try {
-      const data = await apiRequest(`/products?company_id=${activeCompany.id}`);
-      setProducts(data);
+      const [prods, cats] = await Promise.all([
+        apiRequest(`/products?company_id=${activeCompany.id}`),
+        apiRequest("/catalogs/sunat"),
+      ]);
+      setProducts(prods);
+      setDetractionServices(cats.detraction_services || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -49,31 +93,63 @@ export const ProductsPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadProducts();
+    loadInitialData();
   }, [activeCompany]);
 
+  // Recálculo de precio/valor con IGV
+  const handleValueChange = (val: number) => {
+    setUnitValue(val);
+    if (igvType === "10") {
+      setUnitPrice(Number((val * 1.18).toFixed(4)));
+    } else {
+      setUnitPrice(val);
+    }
+  };
+
+  const handlePriceChange = (price: number) => {
+    setUnitPrice(price);
+    if (igvType === "10") {
+      setUnitValue(Number((price / 1.18).toFixed(4)));
+    } else {
+      setUnitValue(price);
+    }
+  };
+
   const handleSave = async () => {
-    if (!description.trim() || !activeCompany) return;
+    if (!description.trim() || !activeCompany) {
+      notifications.show({ title: "Atención", message: "La descripción del producto es obligatoria", color: "orange" });
+      return;
+    }
     setIsSaving(true);
     try {
-      const price = Number((unitValue * 1.18).toFixed(4));
       await apiRequest("/products", {
         method: "POST",
         body: JSON.stringify({
           company_id: activeCompany.id,
-          internal_code: code.trim() || undefined,
+          internal_code: internalCode.trim() || undefined,
+          barcode: barcode.trim() || undefined,
+          sunat_code: sunatCode.trim() || undefined,
           description: description.trim(),
+          category_name: categoryName.trim() || "General",
           unit_code: unitCode,
+          currency: currency,
           unit_value: unitValue,
-          unit_price: price,
-          igv_type: "10",
+          unit_price: unitPrice,
+          cost_price: costPrice,
+          igv_type: igvType,
+          has_detraction: hasDetraction,
+          detraction_code: hasDetraction ? detractionCode : undefined,
+          detraction_percent: hasDetraction ? detractionPercent : undefined,
+          is_service: isService,
+          stock: isService ? 0 : stock,
+          stock_min: isService ? 0 : stockMin,
+          notes: notes.trim() || undefined,
         }),
       });
-      notifications.show({ title: "Guardado", message: "Producto registrado en catálogo", color: "teal" });
+      notifications.show({ title: "Guardado", message: "Producto registrado exitosamente en catálogo", color: "teal" });
       setOpened(false);
-      setCode("");
-      setDescription("");
-      loadProducts();
+      resetForm();
+      loadInitialData();
     } catch (err: any) {
       notifications.show({ title: "Error", message: err.message, color: "red" });
     } finally {
@@ -88,17 +164,62 @@ export const ProductsPage: React.FC = () => {
       await apiRequest(`/products/${productToDelete.id}`, { method: "DELETE" });
       notifications.show({
         title: "Producto Desactivado",
-        message: `El producto ${productToDelete.description} fue eliminado lógicamente (se preserva su historial)`,
+        message: `${productToDelete.description} fue desactivado lógicamente`,
         color: "teal",
       });
       setProductToDelete(null);
-      loadProducts();
+      loadInitialData();
     } catch (err: any) {
       notifications.show({ title: "Error", message: err.message, color: "red" });
     } finally {
       setIsDeleting(false);
     }
   };
+
+  const resetForm = () => {
+    setInternalCode("");
+    setBarcode("");
+    setSunatCode("");
+    setDescription("");
+    setCategoryName("General");
+    setUnitCode("NIU");
+    setCurrency("PEN");
+    setIsService(false);
+    setUnitValue(100);
+    setUnitPrice(118);
+    setCostPrice(0);
+    setIgvType("10");
+    setHasDetraction(false);
+    setDetractionCode("019");
+    setDetractionPercent(10);
+    setStock(0);
+    setStockMin(5);
+    setNotes("");
+  };
+
+  // Filtrado de productos
+  const categoriesList = Array.from(new Set(products.map((p) => p.category_name).filter(Boolean)));
+
+  const filteredProducts = products.filter((p) => {
+    const matchesSearch =
+      searchQuery === "" ||
+      p.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.internal_code && p.internal_code.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (p.barcode && p.barcode.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      p.category_name.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesCat = !filterCategory || p.category_name === filterCategory;
+    const matchesType =
+      !filterType ||
+      (filterType === "service" && p.is_service) ||
+      (filterType === "goods" && !p.is_service);
+
+    return matchesSearch && matchesCat && matchesType;
+  });
+
+  const totalGoods = products.filter((p) => !p.is_service).length;
+  const totalServices = products.filter((p) => p.is_service).length;
+  const lowStockCount = products.filter((p) => !p.is_service && Number(p.stock) <= Number(p.stock_min)).length;
 
   return (
     <Box>
@@ -108,140 +229,447 @@ export const ProductsPage: React.FC = () => {
             Catálogo de Productos y Servicios
           </Title>
           <Text size="sm" c="dimmed">
-            Minerales, tipos de carbón y servicios mineros de <b>{activeCompany?.business_name}</b>
+            Maestro de ítems, precios, inventario y reglas tributarias SUNAT • Empresa:{" "}
+            <strong>{activeCompany?.trademark_name || activeCompany?.business_name}</strong>
           </Text>
         </div>
-
-        <Button
-          leftSection={<Plus size={16} />}
-          color="amber"
-          style={{ backgroundColor: "#D97706" }}
-          onClick={() => setOpened(true)}
-        >
-          Nuevo Producto / Servicio
-        </Button>
+        <Group>
+          <Button
+            leftSection={<Plus size={16} />}
+            color="indigo"
+            style={{ backgroundColor: "#1E3A8A" }}
+            onClick={() => {
+              resetForm();
+              setOpened(true);
+            }}
+          >
+            Nuevo Producto / Servicio
+          </Button>
+        </Group>
       </Group>
 
-      <Paper withBorder radius="md" style={{ backgroundColor: "#FFFFFF", overflow: "hidden" }}>
+      {/* Tarjetas de Resumen de Inventario y Catálogo */}
+      <SimpleGrid cols={{ base: 1, sm: 3 }} mb="xl">
+        <Card withBorder padding="md" radius="md" style={{ backgroundColor: "#FFFFFF" }}>
+          <Group justify="space-between" mb="xs">
+            <Text size="xs" fw={700} c="dimmed">
+              TOTAL ÍTEMS ACTIVOS
+            </Text>
+            <Boxes size={20} color="#2563EB" />
+          </Group>
+          <Text size="xl" fw={700} c="blue.9">
+            {products.length} Registros
+          </Text>
+          <Text size="xs" c="dimmed" mt={4}>
+            {totalGoods} Bienes físicos • {totalServices} Servicios
+          </Text>
+        </Card>
+
+        <Card withBorder padding="md" radius="md" style={{ backgroundColor: "#FFFFFF" }}>
+          <Group justify="space-between" mb="xs">
+            <Text size="xs" fw={700} c="dimmed">
+              CON DETRACCIÓN SUNAT
+            </Text>
+            <Zap size={20} color="#D97706" />
+          </Group>
+          <Text size="xl" fw={700} c="orange.9">
+            {products.filter((p) => p.has_detraction).length} Ítems
+          </Text>
+          <Text size="xs" c="dimmed" mt={4}>
+            Activan cálculo automático en factura
+          </Text>
+        </Card>
+
+        <Card
+          withBorder
+          padding="md"
+          radius="md"
+          style={{
+            backgroundColor: lowStockCount > 0 ? "#FEF2F2" : "#FFFFFF",
+            borderLeft: lowStockCount > 0 ? "5px solid #EF4444" : undefined,
+          }}
+        >
+          <Group justify="space-between" mb="xs">
+            <Text size="xs" fw={700} c={lowStockCount > 0 ? "red.8" : "dimmed"}>
+              ALERTAS DE STOCK MÍNIMO
+            </Text>
+            <AlertTriangle size={20} color={lowStockCount > 0 ? "#DC2626" : "#9CA3AF"} />
+          </Group>
+          <Text size="xl" fw={700} c={lowStockCount > 0 ? "red.9" : "gray.8"}>
+            {lowStockCount} Productos
+          </Text>
+          <Text size="xs" c="dimmed" mt={4}>
+            Existencias por debajo del umbral de reposición
+          </Text>
+        </Card>
+      </SimpleGrid>
+
+      {/* Filtros y Búsqueda */}
+      <Paper withBorder p="md" radius="md" mb="lg" style={{ backgroundColor: "#FFFFFF" }}>
+        <Group>
+          <TextInput
+            placeholder="Buscar por descripción, código interno, código de barras o categoría..."
+            leftSection={<Search size={16} />}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.currentTarget.value)}
+            style={{ flex: 1 }}
+          />
+          <Select
+            placeholder="Todas las Categorías"
+            clearable
+            data={categoriesList.map((c) => ({ value: c, label: c }))}
+            value={filterCategory}
+            onChange={setFilterCategory}
+            style={{ width: 200 }}
+          />
+          <Select
+            placeholder="Tipo de Ítem"
+            clearable
+            data={[
+              { value: "goods", label: "Bienes Físicos" },
+              { value: "service", label: "Servicios" },
+            ]}
+            value={filterType}
+            onChange={setFilterType}
+            style={{ width: 170 }}
+          />
+        </Group>
+      </Paper>
+
+      {/* Tabla de Productos */}
+      <Paper withBorder radius="md" p="md" style={{ backgroundColor: "#FFFFFF" }}>
         {loading ? (
           <Center p="xl">
-            <Loader color="amber" />
+            <Loader color="indigo" />
+          </Center>
+        ) : filteredProducts.length === 0 ? (
+          <Center p="xl">
+            <Text c="dimmed">No se encontraron productos registrados</Text>
           </Center>
         ) : (
           <Table verticalSpacing="sm" striped highlightOnHover>
             <Table.Thead>
-              <Table.Tr style={{ backgroundColor: "#F8FAFC" }}>
-                <Table.Th>Código</Table.Th>
-                <Table.Th>Descripción</Table.Th>
-                <Table.Th>Unidad SUNAT</Table.Th>
-                <Table.Th>Valor Unit. (Sin IGV)</Table.Th>
-                <Table.Th>Precio Unit. (Con IGV)</Table.Th>
-                <Table.Th style={{ textAlign: "right" }}>Acción</Table.Th>
+              <Table.Tr>
+                <Table.Th>CÓDIGO / SKU</Table.Th>
+                <Table.Th>DESCRIPCIÓN</Table.Th>
+                <Table.Th>CATEGORÍA</Table.Th>
+                <Table.Th>UNIDAD</Table.Th>
+                <Table.Th style={{ textAlign: "right" }}>VALOR (SIN IGV)</Table.Th>
+                <Table.Th style={{ textAlign: "right" }}>PRECIO (CON IGV)</Table.Th>
+                <Table.Th style={{ textAlign: "center" }}>STOCK</Table.Th>
+                <Table.Th style={{ textAlign: "center" }}>DETRACCIÓN</Table.Th>
+                <Table.Th style={{ textAlign: "right" }}>ACCIONES</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {products.map((p) => (
-                <Table.Tr key={p.id}>
-                  <Table.Td>
-                    <Text size="xs" fw={700} style={{ fontFamily: "monospace" }}>
-                      {p.internal_code || "-"}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm" fw={600}>
-                      {p.description}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="xs">{p.unit_code}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm">S/ {Number(p.unit_value).toFixed(2)}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm" fw={700} c="orange.9">
-                      S/ {Number(p.unit_price).toFixed(2)}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td style={{ textAlign: "right" }}>
-                    <ActionIcon
-                      variant="subtle"
-                      color="red"
-                      title="Eliminar lógicamente (desactivar del catálogo)"
-                      onClick={() => setProductToDelete(p)}
-                    >
-                      <Trash2 size={16} />
-                    </ActionIcon>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
+              {filteredProducts.map((p) => {
+                const isLowStock = !p.is_service && Number(p.stock) <= Number(p.stock_min);
+                return (
+                  <Table.Tr key={p.id}>
+                    <Table.Td>
+                      <Text size="xs" fw={700} style={{ fontFamily: "monospace" }}>
+                        {p.internal_code || "SIN-COD"}
+                      </Text>
+                      {p.barcode && (
+                        <Text size="xs" c="dimmed">
+                          SKU: {p.barcode}
+                        </Text>
+                      )}
+                    </Table.Td>
+                    <Table.Td>
+                      <Text fw={600} size="sm" c="blue.9">
+                        {p.description}
+                      </Text>
+                      {p.is_service && (
+                        <Badge size="xs" color="violet" variant="light" mt={2}>
+                          Servicio Intangible
+                        </Badge>
+                      )}
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge variant="outline" color="gray" size="sm">
+                        {p.category_name}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge variant="light" color="blue" size="sm">
+                        {p.unit_code}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td style={{ textAlign: "right" }}>
+                      <Text size="sm">
+                        {p.currency === "USD" ? "$ " : "S/ "}
+                        {Number(p.unit_value).toFixed(2)}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td style={{ textAlign: "right" }}>
+                      <Text size="sm" fw={700} c="green.9">
+                        {p.currency === "USD" ? "$ " : "S/ "}
+                        {Number(p.unit_price).toFixed(2)}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td style={{ textAlign: "center" }}>
+                      {p.is_service ? (
+                        <Text size="xs" c="dimmed">
+                          N/A
+                        </Text>
+                      ) : (
+                        <Badge color={isLowStock ? "red" : "teal"} variant="light" size="sm">
+                          {Number(p.stock).toFixed(2)}
+                        </Badge>
+                      )}
+                    </Table.Td>
+                    <Table.Td style={{ textAlign: "center" }}>
+                      {p.has_detraction ? (
+                        <Badge color="orange" size="xs" variant="filled">
+                          {p.detraction_percent}% (Cod {p.detraction_code})
+                        </Badge>
+                      ) : (
+                        <Text size="xs" c="dimmed">
+                          No
+                        </Text>
+                      )}
+                    </Table.Td>
+                    <Table.Td style={{ textAlign: "right" }}>
+                      <Tooltip label="Desactivar producto">
+                        <ActionIcon
+                          color="red"
+                          variant="subtle"
+                          onClick={() => setProductToDelete(p)}
+                        >
+                          <Trash2 size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Table.Td>
+                  </Table.Tr>
+                );
+              })}
             </Table.Tbody>
           </Table>
         )}
       </Paper>
 
-      {/* Modal Nuevo Producto */}
-      <Modal opened={opened} onClose={() => setOpened(false)} title="Registrar Producto o Servicio" centered size="md">
-        <Box p="xs">
-          <TextInput label="Código Interno" placeholder="Ej. CARB-ANT-01" value={code} onChange={(e) => setCode(e.currentTarget.value)} mb="xs" />
-          <TextInput label="Descripción del Bien / Servicio" placeholder="Ej. Carbón Antracita en Granel" value={description} onChange={(e) => setDescription(e.currentTarget.value)} mb="xs" required />
-          <Select
-            label="Unidad de Medida"
-            value={unitCode}
-            onChange={(val) => val && setUnitCode(val)}
-            data={[
-              { value: "TNE", label: "TNE - Toneladas Métricas" },
-              { value: "KGM", label: "KGM - Kilogramos" },
-              { value: "NIU", label: "NIU - Unidades" },
-              { value: "ZZ", label: "ZZ - Servicios" },
-            ]}
-            mb="xs"
-            allowDeselect={false}
-          />
-          <NumberInput
-            label="Valor Unitario (Sin IGV)"
-            value={unitValue}
-            onChange={(val) => setUnitValue(Number(val))}
-            min={0}
-            decimalScale={2}
-            mb="md"
+      {/* Modal Crear Producto */}
+      <Modal
+        opened={opened}
+        onClose={() => setOpened(false)}
+        title={
+          <Group>
+            <Package size={20} color="#1E3A8A" />
+            <Text fw={700} size="md">
+              Registrar Nuevo Producto o Servicio
+            </Text>
+          </Group>
+        }
+        size="lg"
+        centered
+      >
+        <Box>
+          <Group grow mb="sm">
+            <TextInput
+              label="Código Interno"
+              placeholder="Ej. CARB-001, SERV-01"
+              value={internalCode}
+              onChange={(e) => setInternalCode(e.currentTarget.value)}
+            />
+            <TextInput
+              label="Código de Barras / SKU (Opcional)"
+              placeholder="Ej. 7751234567890"
+              value={barcode}
+              onChange={(e) => setBarcode(e.currentTarget.value)}
+            />
+          </Group>
+
+          <TextInput
+            label="Descripción del Producto o Servicio"
+            placeholder="Ej. Carbón Antracita en Grano Seleccionado"
+            value={description}
+            onChange={(e) => setDescription(e.currentTarget.value)}
+            mb="sm"
+            required
           />
 
-          <Group justify="flex-end">
+          <Group grow mb="sm">
+            <TextInput
+              label="Categoría / Familia"
+              placeholder="Ej. Carbón, Flete, Ferretería, Servicios"
+              value={categoryName}
+              onChange={(e) => setCategoryName(e.currentTarget.value)}
+            />
+            <Select
+              label="Unidad de Medida SUNAT"
+              data={[
+                { value: "NIU", label: "NIU - Unidades / Piezas" },
+                { value: "ZZ", label: "ZZ - Servicios" },
+                { value: "TNE", label: "TNE - Toneladas Métricas" },
+                { value: "KGM", label: "KGM - Kilogramos" },
+                { value: "LTR", label: "LTR - Litros" },
+                { value: "MTR", label: "MTR - Metros" },
+                { value: "BX", label: "BX - Cajas" },
+                { value: "DZN", label: "DZN - Docenas" },
+                { value: "GLI", label: "GLI - Galones" },
+              ]}
+              value={unitCode}
+              onChange={(val) => {
+                setUnitCode(val || "NIU");
+                if (val === "ZZ") setIsService(true);
+              }}
+              required
+            />
+          </Group>
+
+          <Group grow mb="sm">
+            <Select
+              label="Moneda"
+              data={[
+                { value: "PEN", label: "Soles (PEN)" },
+                { value: "USD", label: "Dólares Americanos (USD)" },
+              ]}
+              value={currency}
+              onChange={(val) => setCurrency(val || "PEN")}
+              required
+            />
+            <Select
+              label="Afectación del IGV"
+              data={[
+                { value: "10", label: "10 - Gravado - Operación Onerosa (18%)" },
+                { value: "20", label: "20 - Exonerado - Operación Onerosa" },
+                { value: "30", label: "30 - Inafecto - Operación Onerosa" },
+              ]}
+              value={igvType}
+              onChange={(val) => setIgvType(val || "10")}
+              required
+            />
+          </Group>
+
+          <Group grow mb="sm">
+            <NumberInput
+              label="Valor Unitario (Sin IGV)"
+              decimalScale={4}
+              min={0}
+              value={unitValue}
+              onChange={(val) => handleValueChange(Number(val) || 0)}
+              required
+            />
+            <NumberInput
+              label="Precio de Venta (Con IGV)"
+              decimalScale={4}
+              min={0}
+              value={unitPrice}
+              onChange={(val) => handlePriceChange(Number(val) || 0)}
+              required
+            />
+            <NumberInput
+              label="Costo de Compra (Ref.)"
+              decimalScale={4}
+              min={0}
+              value={costPrice}
+              onChange={(val) => setCostPrice(Number(val) || 0)}
+            />
+          </Group>
+
+          {/* Toggle Es Servicio vs Bien */}
+          <Group mb="md" mt="md">
+            <Switch
+              label="¿Es un servicio intangible? (No maneja stock)"
+              checked={isService}
+              onChange={(e) => setIsService(e.currentTarget.checked)}
+            />
+          </Group>
+
+          {!isService && (
+            <Group grow mb="sm">
+              <NumberInput
+                label="Stock Inicial"
+                decimalScale={2}
+                min={0}
+                value={stock}
+                onChange={(val) => setStock(Number(val) || 0)}
+              />
+              <NumberInput
+                label="Stock Mínimo de Alerta"
+                decimalScale={2}
+                min={0}
+                value={stockMin}
+                onChange={(val) => setStockMin(Number(val) || 0)}
+              />
+            </Group>
+          )}
+
+          {/* Sección de Detracción SUNAT */}
+          <Paper withBorder p="sm" radius="md" mb="md" style={{ backgroundColor: "#F8FAFC" }}>
+            <Switch
+              label="¿Este producto o servicio está sujeto a Detracción SUNAT?"
+              checked={hasDetraction}
+              onChange={(e) => setHasDetraction(e.currentTarget.checked)}
+              mb={hasDetraction ? "sm" : 0}
+            />
+
+            {hasDetraction && (
+              <Group grow mt="xs">
+                <Select
+                  label="Código SUNAT de Servicio / Bien"
+                  data={detractionServices.map((d) => ({
+                    value: d.code,
+                    label: `${d.code} - ${d.description} (${d.percent}%)`,
+                  }))}
+                  value={detractionCode}
+                  onChange={(val) => {
+                    setDetractionCode(val || "019");
+                    const found = detractionServices.find((s) => s.code === val);
+                    if (found) setDetractionPercent(found.percent);
+                  }}
+                  required
+                />
+                <NumberInput
+                  label="Porcentaje de Detracción (%)"
+                  decimalScale={2}
+                  min={1}
+                  max={100}
+                  value={detractionPercent}
+                  onChange={(val) => setDetractionPercent(Number(val) || 10)}
+                  required
+                />
+              </Group>
+            )}
+          </Paper>
+
+          <Group justify="flex-end" mt="lg">
             <Button variant="default" onClick={() => setOpened(false)}>
               Cancelar
             </Button>
-            <Button color="amber" loading={isSaving} onClick={handleSave} style={{ backgroundColor: "#D97706" }}>
+            <Button
+              color="indigo"
+              style={{ backgroundColor: "#1E3A8A" }}
+              loading={isSaving}
+              onClick={handleSave}
+            >
               Guardar en Catálogo
             </Button>
           </Group>
         </Box>
       </Modal>
 
-      {/* Modal Confirmación de Eliminación Lógica */}
+      {/* Modal Confirmar Eliminación */}
       <Modal
         opened={!!productToDelete}
         onClose={() => setProductToDelete(null)}
-        title="Confirmar Eliminación Lógica"
+        title="Confirmar Desactivación"
         centered
-        size="sm"
       >
-        <Box p="xs">
-          <Text size="sm" mb="sm">
-            ¿Está seguro de desactivar <b>{productToDelete?.description}</b>?
-          </Text>
-          <Text size="xs" c="dimmed" mb="lg">
-            El ítem no aparecerá en el selector para nuevas facturas, pero su historial de ventas anteriores se preservará intacto en los reportes contables.
-          </Text>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setProductToDelete(null)}>
-              Cancelar
-            </Button>
-            <Button color="red" loading={isDeleting} onClick={handleConfirmDelete}>
-              Desactivar Ítem
-            </Button>
-          </Group>
-        </Box>
+        <Text size="sm" mb="lg">
+          ¿Está seguro de que desea desactivar el producto{" "}
+          <strong>{productToDelete?.description}</strong>? Sus emisiones históricas
+          no se verán afectadas.
+        </Text>
+        <Group justify="flex-end">
+          <Button variant="default" onClick={() => setProductToDelete(null)}>
+            Cancelar
+          </Button>
+          <Button color="red" loading={isDeleting} onClick={handleConfirmDelete}>
+            Desactivar
+          </Button>
+        </Group>
       </Modal>
     </Box>
   );

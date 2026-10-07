@@ -16,6 +16,10 @@ export interface Company {
   sol_user: string | null;
   is_matrix: boolean;
   is_active: boolean;
+  bn_account?: string | null;
+  factos_company_id?: string | null;
+  email?: string | null;
+  phone?: string | null;
 }
 
 interface AppContextType {

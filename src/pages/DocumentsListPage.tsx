@@ -28,6 +28,8 @@ import {
   Ban,
   FileSpreadsheet,
   Trash2,
+  Download,
+  FileDiff,
 } from "lucide-react";
 import { apiRequest } from "../api/client";
 import { useApp } from "../context/AppContext";
@@ -50,6 +52,51 @@ export const DocumentsListPage: React.FC = () => {
   // Modal de Eliminación Lógica
   const [docToDelete, setDocToDelete] = useState<any | null>(null);
   const [isDeletingDoc, setIsDeletingDoc] = useState(false);
+  const [isDownloadingExcel, setIsDownloadingExcel] = useState(false);
+
+  const handleDownloadExcel = async () => {
+    if (!activeCompany) return;
+    setIsDownloadingExcel(true);
+    try {
+      const q = new URLSearchParams({
+        company_id: activeCompany.id.toString(),
+        include_test: isTestMode ? "true" : "false",
+      });
+      if (typeCode) q.set("type_code", typeCode);
+      if (status) q.set("status", status);
+
+      const token = localStorage.getItem("hania_token");
+      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+      const res = await fetch(`${baseUrl}/reports/sales-excel?${q.toString()}`, {
+        headers: { Authorization: token ? `Bearer ${token}` : "" },
+      });
+      if (!res.ok) throw new Error("Fallo al generar el reporte en Excel");
+
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `Registro_Ventas_${activeCompany.ruc}_${new Date().toISOString().split("T")[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(blobUrl);
+
+      notifications.show({
+        title: "Excel Descargado",
+        message: "El Registro de Ventas ha sido descargado en formato oficial .xlsx",
+        color: "teal",
+      });
+    } catch (err: any) {
+      notifications.show({
+        title: "Error",
+        message: err.message || "No se pudo descargar el archivo Excel",
+        color: "red",
+      });
+    } finally {
+      setIsDownloadingExcel(false);
+    }
+  };
 
   const loadDocs = async () => {
     setLoading(true);
@@ -145,6 +192,16 @@ export const DocumentsListPage: React.FC = () => {
         </div>
 
         <Group>
+          <Button
+            leftSection={<Download size={16} />}
+            color="teal"
+            style={{ backgroundColor: "#059669" }}
+            onClick={handleDownloadExcel}
+            loading={isDownloadingExcel}
+          >
+            Exportar Excel (RVIE)
+          </Button>
+
           <Button
             component={Link}
             to="/emitir-comprobante"
@@ -366,6 +423,20 @@ export const DocumentsListPage: React.FC = () => {
                             }}
                           >
                             <Ban size={14} />
+                          </ActionIcon>
+                        </Tooltip>
+                      )}
+
+                      {(doc.type_code === "01" || doc.type_code === "03") && doc.status === "accepted" && (
+                        <Tooltip label="Emitir Nota de Crédito / Débito">
+                          <ActionIcon
+                            component={Link}
+                            to={`/notas-credito-debito?affectedType=${doc.type_code}&affectedSeries=${doc.series}&affectedCorr=${doc.correlative}&clientDoc=${doc.client_doc_number}&clientName=${encodeURIComponent(doc.client_name)}&amount=${doc.total_taxable}`}
+                            variant="light"
+                            color="orange"
+                            size="sm"
+                          >
+                            <FileDiff size={14} />
                           </ActionIcon>
                         </Tooltip>
                       )}
