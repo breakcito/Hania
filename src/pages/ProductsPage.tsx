@@ -26,23 +26,21 @@ import {
   Trash2,
   Package,
   Search,
-  AlertTriangle,
   Boxes,
   Zap,
+  Edit,
 } from "lucide-react";
 import { apiRequest } from "../api/client";
-import { useApp } from "../context/AppContext";
 
 export const ProductsPage: React.FC = () => {
-  const { activeCompany } = useApp();
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [productToDelete, setProductToDelete] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Filtros
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterCategory, setFilterCategory] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string | null>(null); // "service", "goods"
 
   // Catálogos SUNAT para detracciones
@@ -53,37 +51,27 @@ export const ProductsPage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
 
   // Form State
-  const [internalCode, setInternalCode] = useState("");
-  const [barcode, setBarcode] = useState("");
   const [sunatCode, setSunatCode] = useState("");
   const [description, setDescription] = useState("");
-  const [categoryName, setCategoryName] = useState("General");
   const [unitCode, setUnitCode] = useState("NIU");
   const [currency, setCurrency] = useState("PEN");
   const [isService, setIsService] = useState(false);
-
   const [unitValue, setUnitValue] = useState<number>(100); // Sin IGV
   const [unitPrice, setUnitPrice] = useState<number>(118); // Con IGV
-  const [costPrice, setCostPrice] = useState<number>(0);
   const [igvType, setIgvType] = useState("10");
 
   const [hasDetraction, setHasDetraction] = useState(false);
   const [detractionCode, setDetractionCode] = useState("019");
   const [detractionPercent, setDetractionPercent] = useState<number>(10);
 
-  const [stock, setStock] = useState<number>(0);
-  const [stockMin, setStockMin] = useState<number>(5);
-  const [notes, setNotes] = useState("");
-
   const loadInitialData = async () => {
-    if (!activeCompany) return;
     setLoading(true);
     try {
       const [prods, cats] = await Promise.all([
-        apiRequest(`/products?company_id=${activeCompany.id}`),
+        apiRequest("/products"),
         apiRequest("/catalogs/sunat"),
       ]);
-      setProducts(prods);
+      setProducts(prods || []);
       setDetractionServices(cats.detraction_services || []);
     } catch (err) {
       console.error(err);
@@ -94,60 +82,67 @@ export const ProductsPage: React.FC = () => {
 
   useEffect(() => {
     loadInitialData();
-  }, [activeCompany]);
+  }, []);
 
-  // Recálculo de precio/valor con IGV
-  const handleValueChange = (val: number) => {
-    setUnitValue(val);
-    if (igvType === "10") {
-      setUnitPrice(Number((val * 1.18).toFixed(4)));
-    } else {
-      setUnitPrice(val);
-    }
+  const handleOpenCreate = () => {
+    resetForm();
+    setEditingProduct(null);
+    setOpened(true);
   };
 
-  const handlePriceChange = (price: number) => {
-    setUnitPrice(price);
-    if (igvType === "10") {
-      setUnitValue(Number((price / 1.18).toFixed(4)));
-    } else {
-      setUnitValue(price);
-    }
+  const handleOpenEdit = (p: any) => {
+    setEditingProduct(p);
+    setSunatCode(p.sunat_code || "");
+    setDescription(p.description);
+    setUnitCode(p.unit_code || "NIU");
+    setCurrency(p.currency || "PEN");
+    setIsService(Boolean(p.is_service));
+    setUnitValue(Number(p.unit_value) || 0);
+    setUnitPrice(Number(p.unit_price) || 0);
+    setIgvType(p.igv_type || "10");
+    setHasDetraction(Boolean(p.has_detraction));
+    setDetractionCode(p.detraction_code || "019");
+    setDetractionPercent(Number(p.detraction_percent) || 10);
+    setOpened(true);
   };
 
   const handleSave = async () => {
-    if (!description.trim() || !activeCompany) {
+    if (!description.trim()) {
       notifications.show({ title: "Atención", message: "La descripción del producto es obligatoria", color: "orange" });
       return;
     }
     setIsSaving(true);
     try {
-      await apiRequest("/products", {
-        method: "POST",
-        body: JSON.stringify({
-          company_id: activeCompany.id,
-          internal_code: internalCode.trim() || undefined,
-          barcode: barcode.trim() || undefined,
-          sunat_code: sunatCode.trim() || undefined,
-          description: description.trim(),
-          category_name: categoryName.trim() || "General",
-          unit_code: unitCode,
-          currency: currency,
-          unit_value: unitValue,
-          unit_price: unitPrice,
-          cost_price: costPrice,
-          igv_type: igvType,
-          has_detraction: hasDetraction,
-          detraction_code: hasDetraction ? detractionCode : undefined,
-          detraction_percent: hasDetraction ? detractionPercent : undefined,
-          is_service: isService,
-          stock: isService ? 0 : stock,
-          stock_min: isService ? 0 : stockMin,
-          notes: notes.trim() || undefined,
-        }),
-      });
-      notifications.show({ title: "Guardado", message: "Producto registrado exitosamente en catálogo", color: "teal" });
+      const payload = {
+        sunat_code: sunatCode.trim() || undefined,
+        description: description.trim(),
+        unit_code: unitCode,
+        currency: currency,
+        unit_value: unitValue,
+        unit_price: unitPrice,
+        igv_type: igvType,
+        has_detraction: hasDetraction,
+        detraction_code: hasDetraction ? detractionCode : undefined,
+        detraction_percent: hasDetraction ? detractionPercent : undefined,
+        is_service: isService,
+      };
+
+      if (editingProduct) {
+        await apiRequest(`/products/${editingProduct.id}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+        notifications.show({ title: "Producto Actualizado", message: "Catálogo actualizado con éxito", color: "teal" });
+      } else {
+        await apiRequest("/products", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        notifications.show({ title: "Guardado", message: "Producto registrado exitosamente en catálogo", color: "teal" });
+      }
+
       setOpened(false);
+      setEditingProduct(null);
       resetForm();
       loadInitialData();
     } catch (err: any) {
@@ -177,49 +172,36 @@ export const ProductsPage: React.FC = () => {
   };
 
   const resetForm = () => {
-    setInternalCode("");
-    setBarcode("");
+    setEditingProduct(null);
     setSunatCode("");
     setDescription("");
-    setCategoryName("General");
     setUnitCode("NIU");
     setCurrency("PEN");
     setIsService(false);
     setUnitValue(100);
     setUnitPrice(118);
-    setCostPrice(0);
     setIgvType("10");
     setHasDetraction(false);
     setDetractionCode("019");
     setDetractionPercent(10);
-    setStock(0);
-    setStockMin(5);
-    setNotes("");
   };
-
-  // Filtrado de productos
-  const categoriesList = Array.from(new Set(products.map((p) => p.category_name).filter(Boolean)));
 
   const filteredProducts = products.filter((p) => {
     const matchesSearch =
       searchQuery === "" ||
       p.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (p.internal_code && p.internal_code.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (p.barcode && p.barcode.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      p.category_name.toLowerCase().includes(searchQuery.toLowerCase());
+      (p.sunat_code && p.sunat_code.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    const matchesCat = !filterCategory || p.category_name === filterCategory;
     const matchesType =
       !filterType ||
       (filterType === "service" && p.is_service) ||
       (filterType === "goods" && !p.is_service);
 
-    return matchesSearch && matchesCat && matchesType;
+    return matchesSearch && matchesType;
   });
 
   const totalGoods = products.filter((p) => !p.is_service).length;
   const totalServices = products.filter((p) => p.is_service).length;
-  const lowStockCount = products.filter((p) => !p.is_service && Number(p.stock) <= Number(p.stock_min)).length;
 
   return (
     <Box>
@@ -229,8 +211,7 @@ export const ProductsPage: React.FC = () => {
             Catálogo de Productos y Servicios
           </Title>
           <Text size="sm" c="dimmed">
-            Maestro de ítems, precios, inventario y reglas tributarias SUNAT • Empresa:{" "}
-            <strong>{activeCompany?.trademark_name || activeCompany?.business_name}</strong>
+            Maestro corporativo compartido entre todas las empresas • Precios y reglas tributarias SUNAT
           </Text>
         </div>
         <Group>
@@ -238,18 +219,15 @@ export const ProductsPage: React.FC = () => {
             leftSection={<Plus size={16} />}
             color="indigo"
             style={{ backgroundColor: "#1E3A8A" }}
-            onClick={() => {
-              resetForm();
-              setOpened(true);
-            }}
+            onClick={handleOpenCreate}
           >
             Nuevo Producto / Servicio
           </Button>
         </Group>
       </Group>
 
-      {/* Tarjetas de Resumen de Inventario y Catálogo */}
-      <SimpleGrid cols={{ base: 1, sm: 3 }} mb="xl">
+      {/* Tarjetas de Resumen */}
+      <SimpleGrid cols={{ base: 1, sm: 2 }} mb="xl">
         <Card withBorder padding="md" radius="md" style={{ backgroundColor: "#FFFFFF" }}>
           <Group justify="space-between" mb="xs">
             <Text size="xs" fw={700} c="dimmed">
@@ -279,48 +257,17 @@ export const ProductsPage: React.FC = () => {
             Activan cálculo automático en factura
           </Text>
         </Card>
-
-        <Card
-          withBorder
-          padding="md"
-          radius="md"
-          style={{
-            backgroundColor: lowStockCount > 0 ? "#FEF2F2" : "#FFFFFF",
-            borderLeft: lowStockCount > 0 ? "5px solid #EF4444" : undefined,
-          }}
-        >
-          <Group justify="space-between" mb="xs">
-            <Text size="xs" fw={700} c={lowStockCount > 0 ? "red.8" : "dimmed"}>
-              ALERTAS DE STOCK MÍNIMO
-            </Text>
-            <AlertTriangle size={20} color={lowStockCount > 0 ? "#DC2626" : "#9CA3AF"} />
-          </Group>
-          <Text size="xl" fw={700} c={lowStockCount > 0 ? "red.9" : "gray.8"}>
-            {lowStockCount} Productos
-          </Text>
-          <Text size="xs" c="dimmed" mt={4}>
-            Existencias por debajo del umbral de reposición
-          </Text>
-        </Card>
       </SimpleGrid>
 
       {/* Filtros y Búsqueda */}
       <Paper withBorder p="md" radius="md" mb="lg" style={{ backgroundColor: "#FFFFFF" }}>
         <Group>
           <TextInput
-            placeholder="Buscar por descripción, código interno, código de barras o categoría..."
+            placeholder="Buscar por descripción o código SUNAT..."
             leftSection={<Search size={16} />}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.currentTarget.value)}
             style={{ flex: 1 }}
-          />
-          <Select
-            placeholder="Todas las Categorías"
-            clearable
-            data={categoriesList.map((c) => ({ value: c, label: c }))}
-            value={filterCategory}
-            onChange={setFilterCategory}
-            style={{ width: 200 }}
           />
           <Select
             placeholder="Tipo de Ítem"
@@ -350,32 +297,18 @@ export const ProductsPage: React.FC = () => {
           <Table verticalSpacing="sm" striped highlightOnHover>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>CÓDIGO / SKU</Table.Th>
                 <Table.Th>DESCRIPCIÓN</Table.Th>
-                <Table.Th>CATEGORÍA</Table.Th>
+                <Table.Th>CÓDIGO SUNAT</Table.Th>
                 <Table.Th>UNIDAD</Table.Th>
-                <Table.Th style={{ textAlign: "right" }}>VALOR (SIN IGV)</Table.Th>
                 <Table.Th style={{ textAlign: "right" }}>PRECIO (CON IGV)</Table.Th>
-                <Table.Th style={{ textAlign: "center" }}>STOCK</Table.Th>
                 <Table.Th style={{ textAlign: "center" }}>DETRACCIÓN</Table.Th>
                 <Table.Th style={{ textAlign: "right" }}>ACCIONES</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
               {filteredProducts.map((p) => {
-                const isLowStock = !p.is_service && Number(p.stock) <= Number(p.stock_min);
                 return (
                   <Table.Tr key={p.id}>
-                    <Table.Td>
-                      <Text size="xs" fw={700} style={{ fontFamily: "monospace" }}>
-                        {p.internal_code || "SIN-COD"}
-                      </Text>
-                      {p.barcode && (
-                        <Text size="xs" c="dimmed">
-                          SKU: {p.barcode}
-                        </Text>
-                      )}
-                    </Table.Td>
                     <Table.Td>
                       <Text fw={600} size="sm" c="blue.9">
                         {p.description}
@@ -387,9 +320,9 @@ export const ProductsPage: React.FC = () => {
                       )}
                     </Table.Td>
                     <Table.Td>
-                      <Badge variant="outline" color="gray" size="sm">
-                        {p.category_name}
-                      </Badge>
+                      <Text size="xs" c="dimmed" style={{ fontFamily: "monospace" }}>
+                        {p.sunat_code || "-"}
+                      </Text>
                     </Table.Td>
                     <Table.Td>
                       <Badge variant="light" color="blue" size="sm">
@@ -397,27 +330,10 @@ export const ProductsPage: React.FC = () => {
                       </Badge>
                     </Table.Td>
                     <Table.Td style={{ textAlign: "right" }}>
-                      <Text size="sm">
-                        {p.currency === "USD" ? "$ " : "S/ "}
-                        {Number(p.unit_value).toFixed(2)}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td style={{ textAlign: "right" }}>
                       <Text size="sm" fw={700} c="green.9">
                         {p.currency === "USD" ? "$ " : "S/ "}
                         {Number(p.unit_price).toFixed(2)}
                       </Text>
-                    </Table.Td>
-                    <Table.Td style={{ textAlign: "center" }}>
-                      {p.is_service ? (
-                        <Text size="xs" c="dimmed">
-                          N/A
-                        </Text>
-                      ) : (
-                        <Badge color={isLowStock ? "red" : "teal"} variant="light" size="sm">
-                          {Number(p.stock).toFixed(2)}
-                        </Badge>
-                      )}
                     </Table.Td>
                     <Table.Td style={{ textAlign: "center" }}>
                       {p.has_detraction ? (
@@ -431,15 +347,26 @@ export const ProductsPage: React.FC = () => {
                       )}
                     </Table.Td>
                     <Table.Td style={{ textAlign: "right" }}>
-                      <Tooltip label="Desactivar producto">
-                        <ActionIcon
-                          color="red"
-                          variant="subtle"
-                          onClick={() => setProductToDelete(p)}
-                        >
-                          <Trash2 size={16} />
-                        </ActionIcon>
-                      </Tooltip>
+                      <Group gap="xs" justify="flex-end">
+                        <Tooltip label="Editar producto o servicio">
+                          <ActionIcon
+                            color="blue"
+                            variant="subtle"
+                            onClick={() => handleOpenEdit(p)}
+                          >
+                            <Edit size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                        <Tooltip label="Desactivar producto">
+                          <ActionIcon
+                            color="red"
+                            variant="subtle"
+                            onClick={() => setProductToDelete(p)}
+                          >
+                            <Trash2 size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                      </Group>
                     </Table.Td>
                   </Table.Tr>
                 );
@@ -449,7 +376,7 @@ export const ProductsPage: React.FC = () => {
         )}
       </Paper>
 
-      {/* Modal Crear Producto */}
+      {/* Modal Crear / Editar Producto */}
       <Modal
         opened={opened}
         onClose={() => setOpened(false)}
@@ -457,7 +384,7 @@ export const ProductsPage: React.FC = () => {
           <Group>
             <Package size={20} color="#1E3A8A" />
             <Text fw={700} size="md">
-              Registrar Nuevo Producto o Servicio
+              {editingProduct ? "Editar Producto o Servicio" : "Registrar Nuevo Producto o Servicio"}
             </Text>
           </Group>
         }
@@ -465,32 +392,25 @@ export const ProductsPage: React.FC = () => {
         centered
       >
         <Box>
-          <Group grow mb="sm">
-            <TextInput
-              label="Código Interno / Referencia (Opcional)"
-              placeholder="Ej. CARB-001, SERV-01"
-              value={internalCode}
-              onChange={(e) => setInternalCode(e.currentTarget.value)}
-            />
-            <TextInput
-              label={
-                <Group gap={6}>
-                  <span>Código de Producto SUNAT (UNSPSC)</span>
-                  <a
-                    href="https://www.sergestec.com/codigos"
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ fontSize: "11px", color: "#2563EB", textDecoration: "underline" }}
-                  >
-                    🔍 Buscar código
-                  </a>
-                </Group>
-              }
-              placeholder="Ej. 11111600 (Carbón y combustibles sólidos)"
-              value={sunatCode}
-              onChange={(e) => setSunatCode(e.currentTarget.value)}
-            />
-          </Group>
+          <TextInput
+            label={
+              <Group gap={6}>
+                <span>Código SUNAT (Opcional)</span>
+                <a
+                  href="https://www.sergestec.com/codigos"
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ fontSize: "11px", color: "#2563EB", textDecoration: "underline" }}
+                >
+                  🔍 Buscar código
+                </a>
+              </Group>
+            }
+            placeholder="Ej. 11111600 (Carbón y combustibles sólidos)"
+            value={sunatCode}
+            onChange={(e) => setSunatCode(e.currentTarget.value)}
+            mb="sm"
+          />
 
           <TextInput
             label="Descripción del Producto o Servicio"
@@ -502,12 +422,6 @@ export const ProductsPage: React.FC = () => {
           />
 
           <Group grow mb="sm">
-            <TextInput
-              label="Categoría / Familia"
-              placeholder="Ej. Carbón, Flete, Ferretería, Servicios"
-              value={categoryName}
-              onChange={(e) => setCategoryName(e.currentTarget.value)}
-            />
             <Select
               label="Unidad de Medida"
               data={[
@@ -528,9 +442,6 @@ export const ProductsPage: React.FC = () => {
               }}
               required
             />
-          </Group>
-
-          <Group grow mb="sm">
             <Select
               label="Moneda"
               data={[
@@ -541,6 +452,9 @@ export const ProductsPage: React.FC = () => {
               onChange={(val) => setCurrency(val || "PEN")}
               required
             />
+          </Group>
+
+          <Group grow mb="sm">
             <Select
               label="Afectación del IGV"
               data={[
@@ -552,15 +466,16 @@ export const ProductsPage: React.FC = () => {
               onChange={(val) => setIgvType(val || "10")}
               required
             />
-          </Group>
-
-          <Group grow mb="sm">
             <NumberInput
-              label="Valor Unitario (Sin IGV)"
+              label="Valor Unit. (Sin IGV)"
               decimalScale={4}
               min={0}
               value={unitValue}
-              onChange={(val) => handleValueChange(Number(val) || 0)}
+              onChange={(val) => {
+                const v = Number(val) || 0;
+                setUnitValue(v);
+                setUnitPrice(Number((v * 1.18).toFixed(4)));
+              }}
               required
             />
             <NumberInput
@@ -568,7 +483,11 @@ export const ProductsPage: React.FC = () => {
               decimalScale={4}
               min={0}
               value={unitPrice}
-              onChange={(val) => handlePriceChange(Number(val) || 0)}
+              onChange={(val) => {
+                const p = Number(val) || 0;
+                setUnitPrice(p);
+                setUnitValue(Number((p / 1.18).toFixed(4)));
+              }}
               required
             />
           </Group>
@@ -576,7 +495,7 @@ export const ProductsPage: React.FC = () => {
           {/* Toggle Es Servicio vs Bien */}
           <Group mb="md" mt="xs">
             <Switch
-              label="¿Es un servicio intangible? (No maneja inventario físico)"
+              label="¿Es un servicio intangible? (No es bien físico)"
               checked={isService}
               onChange={(e) => setIsService(e.currentTarget.checked)}
             />
@@ -594,7 +513,7 @@ export const ProductsPage: React.FC = () => {
             {hasDetraction && (
               <Group grow mt="xs">
                 <Select
-                  label="Código SUNAT de Servicio / Bien Sujeto a Detracción"
+                  label="Código de Detracción"
                   searchable
                   data={detractionServices.map((d) => ({
                     value: d.code,

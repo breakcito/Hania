@@ -20,18 +20,17 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { UserPlus, Trash2, Shield, UserCheck, Key, Lock } from "lucide-react";
+import { UserPlus, Trash2, Shield, UserCheck, Key, Lock, Edit2 } from "lucide-react";
 import { apiRequest } from "../api/client";
 import { useAuth } from "../context/AuthContext";
-import { useApp } from "../context/AppContext";
 
 export const UsersPage: React.FC = () => {
   const { user: currentUser } = useAuth();
-  const { companies } = useApp();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   const [opened, setOpened] = useState(false);
+  const [editingUser, setEditingUser] = useState<any | null>(null);
   const [userToDelete, setUserToDelete] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -40,11 +39,7 @@ export const UsersPage: React.FC = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
   const [role, setRole] = useState("FACTURADOR");
-  const [defaultCompanyId, setDefaultCompanyId] = useState<string | null>(null);
-  const [assignedSeries, setAssignedSeries] = useState("F001");
 
   const loadUsers = async () => {
     setLoading(true);
@@ -62,28 +57,54 @@ export const UsersPage: React.FC = () => {
     loadUsers();
   }, []);
 
-  const handleCreate = async () => {
-    if (!username.trim() || !password.trim()) {
+  const handleOpenCreate = () => {
+    resetForm();
+    setEditingUser(null);
+    setOpened(true);
+  };
+
+  const handleOpenEdit = (u: any) => {
+    setEditingUser(u);
+    setUsername(u.username || "");
+    setPassword("");
+    setFullName(u.full_name || "");
+    setRole(u.role || "FACTURADOR");
+    setOpened(true);
+  };
+
+  const handleSave = async () => {
+    if (!editingUser && (!username.trim() || !password.trim())) {
       notifications.show({ title: "Atención", message: "Usuario y contraseña son requeridos", color: "orange" });
       return;
     }
 
     setIsSaving(true);
     try {
-      await apiRequest("/auth/users", {
-        method: "POST",
-        body: JSON.stringify({
-          username: username.trim(),
-          password: password,
+      if (editingUser) {
+        const payload: any = {
           full_name: fullName.trim() || undefined,
-          email: email.trim() || undefined,
-          phone: phone.trim() || undefined,
           role: role,
-          default_company_id: defaultCompanyId ? Number(defaultCompanyId) : undefined,
-          assigned_series: assignedSeries.trim() || undefined,
-        }),
-      });
-      notifications.show({ title: "Usuario Creado", message: `Usuario ${username} registrado correctamente`, color: "teal" });
+        };
+        if (password.trim()) {
+          payload.password = password.trim();
+        }
+        await apiRequest(`/auth/users/${editingUser.id}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+        notifications.show({ title: "Usuario Actualizado", message: `Datos de ${editingUser.username} guardados correctamente`, color: "teal" });
+      } else {
+        await apiRequest("/auth/users", {
+          method: "POST",
+          body: JSON.stringify({
+            username: username.trim(),
+            password: password,
+            full_name: fullName.trim() || undefined,
+            role: role,
+          }),
+        });
+        notifications.show({ title: "Usuario Creado", message: `Usuario ${username} registrado correctamente`, color: "teal" });
+      }
       setOpened(false);
       resetForm();
       loadUsers();
@@ -117,11 +138,7 @@ export const UsersPage: React.FC = () => {
     setUsername("");
     setPassword("");
     setFullName("");
-    setEmail("");
-    setPhone("");
     setRole("FACTURADOR");
-    setDefaultCompanyId(null);
-    setAssignedSeries("F001");
   };
 
   return (
@@ -139,10 +156,7 @@ export const UsersPage: React.FC = () => {
           leftSection={<UserPlus size={16} />}
           color="indigo"
           style={{ backgroundColor: "#1E3A8A" }}
-          onClick={() => {
-            resetForm();
-            setOpened(true);
-          }}
+          onClick={handleOpenCreate}
         >
           Nuevo Usuario
         </Button>
@@ -224,8 +238,6 @@ export const UsersPage: React.FC = () => {
                 <Table.Th>USUARIO</Table.Th>
                 <Table.Th>NOMBRE COMPLETO</Table.Th>
                 <Table.Th>ROL</Table.Th>
-                <Table.Th>SERIE ASIGNADA</Table.Th>
-                <Table.Th>CONTACTO</Table.Th>
                 <Table.Th>ESTADO</Table.Th>
                 <Table.Th style={{ textAlign: "right" }}>ACCIONES</Table.Th>
               </Table.Tr>
@@ -268,46 +280,33 @@ export const UsersPage: React.FC = () => {
                       </Badge>
                     </Table.Td>
                     <Table.Td>
-                      {u.assigned_series ? (
-                        <Badge color="gray" variant="outline" size="sm" style={{ fontFamily: "monospace" }}>
-                          {u.assigned_series}
-                        </Badge>
-                      ) : (
-                        <Text size="xs" c="dimmed">
-                          Auto
-                        </Text>
-                      )}
-                    </Table.Td>
-                    <Table.Td>
-                      {u.email && <Text size="xs">{u.email}</Text>}
-                      {u.phone && (
-                        <Text size="xs" c="dimmed">
-                          {u.phone}
-                        </Text>
-                      )}
-                      {!u.email && !u.phone && (
-                        <Text size="xs" c="dimmed">
-                          -
-                        </Text>
-                      )}
-                    </Table.Td>
-                    <Table.Td>
                       <Badge color={u.is_active ? "green" : "red"} size="sm" variant="dot">
                         {u.is_active ? "Activo" : "Inactivo"}
                       </Badge>
                     </Table.Td>
                     <Table.Td style={{ textAlign: "right" }}>
-                      {!isCurrent && u.username !== "admin" && (
-                        <Tooltip label="Desactivar usuario">
+                      <Group gap="xs" justify="flex-end">
+                        <Tooltip label="Editar usuario">
                           <ActionIcon
-                            color="red"
+                            color="blue"
                             variant="subtle"
-                            onClick={() => setUserToDelete(u)}
+                            onClick={() => handleOpenEdit(u)}
                           >
-                            <Trash2 size={16} />
+                            <Edit2 size={16} />
                           </ActionIcon>
                         </Tooltip>
-                      )}
+                        {!isCurrent && u.username !== "admin" && (
+                          <Tooltip label="Desactivar usuario">
+                            <ActionIcon
+                              color="red"
+                              variant="subtle"
+                              onClick={() => setUserToDelete(u)}
+                            >
+                              <Trash2 size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                        )}
+                      </Group>
                     </Table.Td>
                   </Table.Tr>
                 );
@@ -317,7 +316,7 @@ export const UsersPage: React.FC = () => {
         )}
       </Paper>
 
-      {/* Modal Crear Usuario */}
+      {/* Modal Crear / Editar Usuario */}
       <Modal
         opened={opened}
         onClose={() => setOpened(false)}
@@ -325,7 +324,7 @@ export const UsersPage: React.FC = () => {
           <Group>
             <UserPlus size={20} color="#1E3A8A" />
             <Text fw={700} size="md">
-              Crear Nuevo Usuario de Acceso
+              {editingUser ? "Editar Usuario del Sistema" : "Crear Nuevo Usuario de Acceso"}
             </Text>
           </Group>
         }
@@ -339,14 +338,15 @@ export const UsersPage: React.FC = () => {
               placeholder="Ej. c.mendoza"
               value={username}
               onChange={(e) => setUsername(e.currentTarget.value)}
+              disabled={!!editingUser}
               required
             />
             <PasswordInput
-              label="Contraseña Temporal"
-              placeholder="Mínimo 6 caracteres"
+              label={editingUser ? "Nueva Contraseña (Opcional)" : "Contraseña Temporal"}
+              placeholder={editingUser ? "Dejar en blanco para conservar" : "Mínimo 6 caracteres"}
               value={password}
               onChange={(e) => setPassword(e.currentTarget.value)}
-              required
+              required={!editingUser}
             />
           </Group>
 
@@ -358,53 +358,18 @@ export const UsersPage: React.FC = () => {
             mb="sm"
           />
 
-          <Group grow mb="sm">
-            <Select
-              label="Rol / Nivel de Acceso"
-              data={[
-                { value: "ADMIN", label: "Administrador (Control Total)" },
-                { value: "FACTURADOR", label: "Facturador (Emisión y Guías)" },
-                { value: "VENDEDOR", label: "Vendedor / POS (Caja)" },
-                { value: "CONTADOR", label: "Contador (Reportes y RVIE)" },
-              ]}
-              value={role}
-              onChange={(val) => setRole(val || "FACTURADOR")}
-              required
-            />
-            <TextInput
-              label="Serie Predeterminada"
-              placeholder="Ej. F001, B001"
-              value={assignedSeries}
-              onChange={(e) => setAssignedSeries(e.currentTarget.value.toUpperCase())}
-            />
-          </Group>
-
-          <Group grow mb="sm">
-            <Select
-              label="Empresa Predeterminada (Opcional)"
-              placeholder="Cualquiera"
-              clearable
-              data={companies.map((c) => ({
-                value: String(c.id),
-                label: c.trademark_name || c.business_name,
-              }))}
-              value={defaultCompanyId}
-              onChange={setDefaultCompanyId}
-            />
-            <TextInput
-              label="Teléfono Móvil"
-              placeholder="Ej. 987654321"
-              value={phone}
-              onChange={(e) => setPhone(e.currentTarget.value)}
-            />
-          </Group>
-
-          <TextInput
-            label="Correo Electrónico"
-            placeholder="carlos@empresa.com"
-            value={email}
-            onChange={(e) => setEmail(e.currentTarget.value)}
+          <Select
+            label="Rol / Nivel de Acceso"
+            data={[
+              { value: "ADMIN", label: "Administrador (Control Total)" },
+              { value: "FACTURADOR", label: "Facturador (Emisión y Guías)" },
+              { value: "VENDEDOR", label: "Vendedor / POS (Caja)" },
+              { value: "CONTADOR", label: "Contador (Reportes y RVIE)" },
+            ]}
+            value={role}
+            onChange={(val) => setRole(val || "FACTURADOR")}
             mb="lg"
+            required
           />
 
           <Group justify="flex-end">
@@ -415,9 +380,9 @@ export const UsersPage: React.FC = () => {
               color="indigo"
               style={{ backgroundColor: "#1E3A8A" }}
               loading={isSaving}
-              onClick={handleCreate}
+              onClick={handleSave}
             >
-              Crear Usuario
+              {editingUser ? "Guardar Cambios" : "Crear Usuario"}
             </Button>
           </Group>
         </Box>

@@ -205,7 +205,7 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({
                   onChange={handleCompanyChange}
                   data={visibleCompanies.map((c) => ({
                     value: c.id.toString(),
-                    label: `${c.trademark_name || c.business_name} (${c.ruc})`,
+                    label: `${c.business_name} (${c.ruc})`,
                   }))}
                   allowDeselect={false}
                   styles={{

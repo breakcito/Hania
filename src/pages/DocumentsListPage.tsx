@@ -416,7 +416,15 @@ export const DocumentsListPage: React.FC = () => {
 
                   <Table.Td style={{ textAlign: "right" }}>
                     <Group gap="xs" justify="flex-end">
-                      {doc.pdf_url && (
+                      {doc.status === "pending" || doc.status === "waiting_sunat" ? (
+                        <Tooltip label="Comprobante en procesamiento ante SUNAT">
+                          <Badge size="xs" color="yellow" variant="light">
+                            Procesando
+                          </Badge>
+                        </Tooltip>
+                      ) : null}
+
+                      {doc.pdf_url && doc.status !== "pending" && doc.status !== "failed" && (
                         <Tooltip label="Ver / Descargar PDF">
                           <ActionIcon
                             component="a"
@@ -432,7 +440,7 @@ export const DocumentsListPage: React.FC = () => {
                         </Tooltip>
                       )}
 
-                      {doc.xml_url && (
+                      {doc.xml_url && doc.status !== "pending" && doc.status !== "failed" && (
                         <Tooltip label="Descargar XML">
                           <ActionIcon
                             component="a"
@@ -448,7 +456,7 @@ export const DocumentsListPage: React.FC = () => {
                         </Tooltip>
                       )}
 
-                      {doc.cdr_url && (
+                      {doc.cdr_url && doc.status === "accepted" && (
                         <Tooltip label="Descargar CDR (Constancia SUNAT)">
                           <ActionIcon
                             component="a"

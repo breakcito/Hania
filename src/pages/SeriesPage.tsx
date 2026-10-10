@@ -17,6 +17,8 @@ import {
   SimpleGrid,
   Card,
   Divider,
+  ActionIcon,
+  Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
@@ -26,6 +28,8 @@ import {
   FileCheck,
   Truck,
   RotateCw,
+  Edit,
+  Trash2,
 } from "lucide-react";
 import { apiRequest } from "../api/client";
 import { useApp } from "../context/AppContext";
@@ -35,8 +39,9 @@ export const SeriesPage: React.FC = () => {
   const [seriesList, setSeriesList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Modal Crear Serie
+  // Modal Crear / Editar Serie
   const [modalOpened, setModalOpened] = useState(false);
+  const [editingSeries, setEditingSeries] = useState<any | null>(null);
   const [docType, setDocType] = useState<string>("01");
   const [seriesCode, setSeriesCode] = useState<string>("");
   const [correlativeStart, setCorrelativeStart] = useState<number>(0);
@@ -48,7 +53,7 @@ export const SeriesPage: React.FC = () => {
     setLoading(true);
     try {
       const data = await apiRequest(`/series?company_id=${activeCompany.id}`);
-      setSeriesList(data);
+      setSeriesList(data || []);
     } catch (err: any) {
       notifications.show({
         title: "Error al cargar",
@@ -64,7 +69,25 @@ export const SeriesPage: React.FC = () => {
     loadSeries();
   }, [activeCompany]);
 
-  const handleCreateSeries = async (e: React.FormEvent) => {
+  const handleOpenCreate = () => {
+    setEditingSeries(null);
+    setDocType("01");
+    setSeriesCode("");
+    setCorrelativeStart(0);
+    setDescription("");
+    setModalOpened(true);
+  };
+
+  const handleOpenEdit = (ser: any) => {
+    setEditingSeries(ser);
+    setDocType(ser.document_type);
+    setSeriesCode(ser.series);
+    setCorrelativeStart(ser.correlative_current || 0);
+    setDescription(ser.description || "");
+    setModalOpened(true);
+  };
+
+  const handleSaveSeries = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeCompany || !seriesCode.trim()) {
       notifications.show({
@@ -77,25 +100,39 @@ export const SeriesPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      await apiRequest("/series", {
-        method: "POST",
-        body: JSON.stringify({
-          company_id: activeCompany.id,
-          document_type: docType,
-          series: seriesCode.trim().toUpperCase(),
-          correlative_current: Number(correlativeStart) || 0,
-          description: description.trim() || null,
-          is_active: true,
-        }),
-      });
+      const payload = {
+        company_id: activeCompany.id,
+        document_type: docType,
+        series: seriesCode.trim().toUpperCase(),
+        correlative_current: Number(correlativeStart) || 0,
+        description: description.trim() || null,
+        is_active: true,
+      };
 
-      notifications.show({
-        title: "Serie Registrada",
-        message: `La serie ${seriesCode.toUpperCase()} fue creada correctamente`,
-        color: "teal",
-      });
+      if (editingSeries) {
+        await apiRequest(`/series/${editingSeries.id}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+        notifications.show({
+          title: "Serie Actualizada",
+          message: `La serie ${seriesCode.toUpperCase()} y su correlativo fueron actualizados`,
+          color: "teal",
+        });
+      } else {
+        await apiRequest("/series", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        notifications.show({
+          title: "Serie Registrada",
+          message: `La serie ${seriesCode.toUpperCase()} fue creada correctamente`,
+          color: "teal",
+        });
+      }
 
       setModalOpened(false);
+      setEditingSeries(null);
       setSeriesCode("");
       setCorrelativeStart(0);
       setDescription("");
@@ -108,6 +145,21 @@ export const SeriesPage: React.FC = () => {
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteSeries = async (id: number) => {
+    if (!window.confirm("¿Seguro que deseas desactivar esta serie?")) return;
+    try {
+      await apiRequest(`/series/${id}`, { method: "DELETE" });
+      notifications.show({
+        title: "Serie Desactivada",
+        message: "La serie ha sido desactivada",
+        color: "teal",
+      });
+      loadSeries();
+    } catch (err: any) {
+      notifications.show({ title: "Error", message: err.message, color: "red" });
     }
   };
 
@@ -129,7 +181,7 @@ export const SeriesPage: React.FC = () => {
           </Title>
           <Text size="sm" c="dimmed">
             Control de numeración oficial para{" "}
-            <strong>{activeCompany?.trademark_name || activeCompany?.business_name}</strong>
+            <strong>{activeCompany?.business_name}</strong>
           </Text>
         </div>
 
@@ -146,7 +198,7 @@ export const SeriesPage: React.FC = () => {
             leftSection={<Plus size={16} />}
             color="amber"
             style={{ backgroundColor: "#D97706" }}
-            onClick={() => setModalOpened(true)}
+            onClick={handleOpenCreate}
           >
             Nueva Serie
           </Button>
@@ -241,6 +293,7 @@ export const SeriesPage: React.FC = () => {
                 <Table.Th>Próximo Correlativo</Table.Th>
                 <Table.Th>Descripción / Uso</Table.Th>
                 <Table.Th>Estado</Table.Th>
+                <Table.Th style={{ textAlign: "right" }}>Acciones</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -291,6 +344,28 @@ export const SeriesPage: React.FC = () => {
                         </Badge>
                       )}
                     </Table.Td>
+                    <Table.Td style={{ textAlign: "right" }}>
+                      <Group gap="xs" justify="flex-end">
+                        <Tooltip label="Editar serie o correlativo">
+                          <ActionIcon
+                            color="blue"
+                            variant="subtle"
+                            onClick={() => handleOpenEdit(ser)}
+                          >
+                            <Edit size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                        <Tooltip label="Desactivar serie">
+                          <ActionIcon
+                            color="red"
+                            variant="subtle"
+                            onClick={() => handleDeleteSeries(ser.id)}
+                          >
+                            <Trash2 size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                      </Group>
+                    </Table.Td>
                   </Table.Tr>
                 );
               })}
@@ -299,19 +374,21 @@ export const SeriesPage: React.FC = () => {
         )}
       </Paper>
 
-      {/* Modal Registrar Serie */}
+      {/* Modal Registrar / Editar Serie */}
       <Modal
         opened={modalOpened}
         onClose={() => setModalOpened(false)}
         title={
           <Group gap="xs">
             <Hash size={20} color="#D97706" />
-            <Text fw={700}>Crear Nueva Serie de Comprobante</Text>
+            <Text fw={700}>
+              {editingSeries ? "Editar Serie de Comprobante" : "Crear Nueva Serie de Comprobante"}
+            </Text>
           </Group>
         }
         radius="md"
       >
-        <form onSubmit={handleCreateSeries}>
+        <form onSubmit={handleSaveSeries}>
           <Select
             label="Tipo de Comprobante"
             data={[

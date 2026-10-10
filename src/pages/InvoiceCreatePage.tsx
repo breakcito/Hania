@@ -29,6 +29,7 @@ import {
   Info,
   UserPlus,
   PackagePlus,
+  ReceiptText,
 } from "lucide-react";
 import { apiRequest } from "../api/client";
 import { useApp } from "../context/AppContext";
@@ -43,10 +44,12 @@ export const InvoiceCreatePage: React.FC = () => {
   const [typeCode, setTypeCode] = useState<string>("01"); // 01=Factura, 03=Boleta
   const [series, setSeries] = useState<string>("F001");
   const [currency, setCurrency] = useState<string>("PEN");
-  const [issueDate, setIssueDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [issueDate, setIssueDate] = useState<string>(
+    new Date().toISOString().split("T")[0],
+  );
   const [paymentMethod, setPaymentMethod] = useState<string>("contado");
   const [creditDueDate, setCreditDueDate] = useState<string>(
-    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
   );
 
   // Cliente
@@ -58,27 +61,24 @@ export const InvoiceCreatePage: React.FC = () => {
   const [isSearchingClient, setIsSearchingClient] = useState<boolean>(false);
 
   // Ítems
-  const [items, setItems] = useState<any[]>([
-    {
-      description: "Carbón Antracita en Grano Seleccionado (TNE)",
-      unit_code: "TNE",
-      quantity: 30,
-      unit_value: 550, // Sin IGV
-      unit_price: 649, // Con IGV
-      igv_type: "10",
-      igv_amount: 2970,
-      total: 19470,
-    },
-  ]);
+  const [items, setItems] = useState<any[]>([]);
 
   // Catálogo de productos disponibles
   const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
 
-  // Detracción (Minera y Carbón)
-  const [hasDetraction, setHasDetraction] = useState<boolean>(true);
-  const [detractionCode, setDetractionCode] = useState<string>("023"); // 023 = Minerales no metálicos / Carbón
-  const [detractionAccount, setDetractionAccount] = useState<string>(() => import.meta.env.VITE_DEFAULT_BN_ACCOUNT || "");
+  // Detracción (Minera y Carbón) - Solo si aplica, por defecto código 034
+  const [hasDetraction, setHasDetraction] = useState<boolean>(false);
+  const [detractionCode, setDetractionCode] = useState<string>("034"); // 034 = Minerales metálicos no auríferos
+  const [detractionAccount, setDetractionAccount] = useState<string>(
+    () => import.meta.env.VITE_DEFAULT_BN_ACCOUNT || "",
+  );
   const [detractionPercent, setDetractionPercent] = useState<number>(10);
+
+  // Anticipos
+  const [hasPrepayments, setHasPrepayments] = useState<boolean>(false);
+  const [prepayments, setPrepayments] = useState<
+    Array<{ type_code: string; number: string; total: number }>
+  >([]);
 
   // Modal confirmación
   const [confirmOpened, setConfirmOpened] = useState<boolean>(false);
@@ -86,7 +86,8 @@ export const InvoiceCreatePage: React.FC = () => {
 
   // Series y Correlativos dinámicos
   const [availableSeries, setAvailableSeries] = useState<any[]>([]);
-  const [nextCorrelativePreview, setNextCorrelativePreview] = useState<string>("");
+  const [nextCorrelativePreview, setNextCorrelativePreview] =
+    useState<string>("");
 
   // Catálogos SUNAT y Cuentas Bancarias
   const [detractionServices, setDetractionServices] = useState<any[]>([]);
@@ -121,39 +122,108 @@ export const InvoiceCreatePage: React.FC = () => {
   const [qpDetractionPercent, setQpDetractionPercent] = useState<number>(10);
   const [qpSaving, setQpSaving] = useState<boolean>(false);
 
-  // Cargar catálogo de productos de la empresa
+  // Helper para sincronizar detracción inteligentemente según los productos de los ítems
+  const syncDetractionFromItems = (currentItems: any[], availableCatalog: any[] = catalogProducts, detractionList: any[] = detractionServices) => {
+    // Buscar los productos del catálogo asociados a los ítems actuales
+    const itemsDetractionInfo = currentItems
+      .map((it) => {
+        // Encontrar por product_id si existe, o por coincidencia de descripción
+        return availableCatalog.find((p) => (it.product_id && p.id === it.product_id) || p.description === it.description);
+      })
+      .filter(Boolean);
+
+    const productsWithDetraction = itemsDetractionInfo.filter((p) => p.has_detraction);
+
+    if (productsWithDetraction.length > 0) {
+      setHasDetraction(true);
+      const uniqueCodes = Array.from(new Set(productsWithDetraction.map((p) => p.detraction_code).filter(Boolean)));
+      if (uniqueCodes.length === 1) {
+        // Todos coinciden con el mismo código
+        const matchedCode = uniqueCodes[0];
+        setDetractionCode(matchedCode);
+        const svc = detractionList.find((s: any) => s.code === matchedCode);
+        if (svc) {
+          setDetractionPercent(Number(svc.default_percent ?? svc.percent ?? 10));
+        } else if (matchedCode === "027") {
+          setDetractionPercent(4);
+        } else {
+          setDetractionPercent(10);
+        }
+      }
+      // Si son múltiples códigos distintos, se mantiene hasDetraction en true pero el usuario puede elegir el código que aplique
+    } else if (currentItems.length > 0) {
+      setHasDetraction(false);
+    }
+  };
+
+  // Cargar catálogo de productos corporativos y auto-seleccionar el primer producto
   useEffect(() => {
     async function loadCatalog() {
-      if (!activeCompany) return;
       try {
-        const prods = await apiRequest(`/products?company_id=${activeCompany.id}`);
-        setCatalogProducts(prods);
+        const prods = await apiRequest("/products");
+        setCatalogProducts(prods || []);
+
+        // Requisito: En el detalle por defecto autoelegir el primer registro de los productos
+        if (prods && prods.length > 0 && items.length === 0) {
+          const first = prods[0];
+          const qty = 1;
+          const unitVal = Number(first.unit_value) || 0;
+          const unitPrice = Number(first.unit_price) || (unitVal > 0 ? Number((unitVal * 1.18).toFixed(4)) : 0);
+          const total = Number((unitPrice * qty).toFixed(2));
+          const igvAmt = Number((unitVal * 0.18 * qty).toFixed(2));
+
+          const initialItem = {
+            product_id: first.id,
+            internal_code: first.internal_code,
+            description: first.description,
+            unit_code: first.unit_code,
+            quantity: qty,
+            unit_value: unitVal,
+            unit_price: unitPrice,
+            igv_type: first.igv_type || "10",
+            igv_amount: igvAmt,
+            total: total,
+          };
+
+          setItems([initialItem]);
+          syncDetractionFromItems([initialItem], prods, detractionServices);
+        }
       } catch (err) {
         console.error("Error loading products:", err);
       }
     }
     loadCatalog();
-  }, [activeCompany]);
+  }, []);
 
   // Cargar series, catálogos, cuentas bancarias, clientes y vendedores
   useEffect(() => {
     async function loadInitialData() {
       if (!activeCompany) return;
       try {
-        const [seriesData, catData, bankData, clientsData, employeesData] = await Promise.all([
-          apiRequest(`/series?company_id=${activeCompany.id}&document_type=${typeCode}`),
-          apiRequest("/catalogs/sunat"),
-          apiRequest(`/bank-accounts?company_id=${activeCompany.id}`),
-          apiRequest(`/clients?company_id=${activeCompany.id}`),
-          apiRequest(`/employees?company_id=${activeCompany.id}`),
-        ]);
+        const [seriesData, catData, bankData, clientsData, employeesData] =
+          await Promise.all([
+            apiRequest(
+              `/series?company_id=${activeCompany.id}&document_type=${typeCode}`,
+            ),
+            apiRequest("/catalogs/sunat"),
+            apiRequest(`/bank-accounts?company_id=${activeCompany.id}`),
+            apiRequest("/clients"),
+            apiRequest("/employees"),
+          ]);
         setAvailableSeries(seriesData);
         if (seriesData.length > 0) {
           setSeries(seriesData[0].series);
         } else {
           setSeries(typeCode === "01" ? "F001" : "B001");
         }
-        setDetractionServices(catData.detraction_services || []);
+        const detractionList = catData.detraction_services || [];
+        setDetractionServices(detractionList);
+        const svc034 = detractionList.find((s: any) => s.code === "034");
+        if (svc034) {
+          setDetractionPercent(
+            Number(svc034.default_percent ?? svc034.percent ?? 10),
+          );
+        }
         setCatalogClients(clientsData || []);
         setSellers(employeesData || []);
 
@@ -162,14 +232,15 @@ export const InvoiceCreatePage: React.FC = () => {
           (b: any) =>
             b.is_detraction ||
             b.account_type === "detraccion" ||
-            (b.bank && (b.bank.is_national || b.bank.code === "BN" || b.bank.name?.toLowerCase().includes("naci")))
+            (b.bank &&
+              (b.bank.is_national ||
+                b.bank.code === "BN" ||
+                b.bank.name?.toLowerCase().includes("naci"))),
         );
         setAvailableBnAccounts(bnAccountsList);
 
         if (bnAccountsList.length > 0) {
           setDetractionAccount(bnAccountsList[0].account_number);
-        } else if (activeCompany.bn_account) {
-          setDetractionAccount(activeCompany.bn_account);
         }
 
         // Auto-seleccionar al usuario logueado en Responsable
@@ -178,7 +249,10 @@ export const InvoiceCreatePage: React.FC = () => {
             (e: any) =>
               (user?.id && e.user_id === user.id) ||
               (user?.username && e.username === user.username) ||
-              (user?.full_name && e.full_name?.toLowerCase().includes((user.full_name || "").toLowerCase()))
+              (user?.full_name &&
+                e.full_name
+                  ?.toLowerCase()
+                  .includes((user.full_name || "").toLowerCase())),
           );
           if (match) {
             setSelectedSellerId(match.id.toString());
@@ -205,7 +279,7 @@ export const InvoiceCreatePage: React.FC = () => {
       if (!activeCompany || !series) return;
       try {
         const res = await apiRequest(
-          `/series/next-correlative?company_id=${activeCompany.id}&document_type=${typeCode}&series=${series}`
+          `/series/next-correlative?company_id=${activeCompany.id}&document_type=${typeCode}&series=${series}`,
         );
         if (res && res.formatted_number) {
           setNextCorrelativePreview(res.formatted_number);
@@ -221,7 +295,11 @@ export const InvoiceCreatePage: React.FC = () => {
   const handleLookupClient = async () => {
     const doc = clientDocNumber.trim();
     if (!doc) {
-      notifications.show({ title: "Atención", message: "Ingrese un número de documento", color: "orange" });
+      notifications.show({
+        title: "Atención",
+        message: "Ingrese un número de documento",
+        color: "orange",
+      });
       return;
     }
 
@@ -241,7 +319,8 @@ export const InvoiceCreatePage: React.FC = () => {
       } else if (clientDocType === "1") {
         const res = await apiRequest(`/services/dni/${doc}`);
         if (res.data) {
-          const fullName = `${res.data.nombres || ""} ${res.data.apellido_paterno || ""} ${res.data.apellido_materno || ""}`.trim();
+          const fullName =
+            `${res.data.nombres || ""} ${res.data.apellido_paterno || ""} ${res.data.apellido_materno || ""}`.trim();
           setClientName(fullName);
           notifications.show({
             title: "RENIEC",
@@ -253,7 +332,8 @@ export const InvoiceCreatePage: React.FC = () => {
     } catch (err: any) {
       notifications.show({
         title: "Consulta no encontrada",
-        message: err.message || "No se pudo consultar el documento en el padrón",
+        message:
+          err.message || "No se pudo consultar el documento en el padrón",
         color: "red",
       });
     } finally {
@@ -293,13 +373,12 @@ export const InvoiceCreatePage: React.FC = () => {
 
   // Guardado rápido de cliente desde modal
   const handleQuickClientSave = async () => {
-    if (!qcDocNumber.trim() || !qcName.trim() || !activeCompany) return;
+    if (!qcDocNumber.trim() || !qcName.trim()) return;
     setQcSaving(true);
     try {
       const saved = await apiRequest("/clients", {
         method: "POST",
         body: JSON.stringify({
-          company_id: activeCompany.id,
           doc_type: qcDocType,
           doc_number: qcDocNumber.trim(),
           name: qcName.trim(),
@@ -315,9 +394,17 @@ export const InvoiceCreatePage: React.FC = () => {
       setClientAddress(saved.address || "");
       setClientEmail(saved.email || "");
       setQuickClientModal(false);
-      notifications.show({ title: "Cliente Registrado", message: `${saved.name} listo para facturar`, color: "teal" });
+      notifications.show({
+        title: "Cliente Registrado",
+        message: `${saved.name} listo para facturar`,
+        color: "teal",
+      });
     } catch (err: any) {
-      notifications.show({ title: "Error", message: err.message, color: "red" });
+      notifications.show({
+        title: "Error",
+        message: err.message,
+        color: "red",
+      });
     } finally {
       setQcSaving(false);
     }
@@ -325,17 +412,14 @@ export const InvoiceCreatePage: React.FC = () => {
 
   // Guardado rápido de producto desde modal
   const handleQuickProductSave = async () => {
-    if (!qpDesc.trim() || !activeCompany) return;
+    if (!qpDesc.trim()) return;
     setQpSaving(true);
     try {
       const saved = await apiRequest("/products", {
         method: "POST",
         body: JSON.stringify({
-          company_id: activeCompany.id,
-          internal_code: qpCode.trim() || undefined,
           description: qpDesc.trim(),
           unit_code: qpUnit,
-          unit_value: qpValue,
           unit_price: qpPrice,
           has_detraction: qpHasDetraction,
           detraction_code: qpHasDetraction ? qpDetractionCode : undefined,
@@ -345,9 +429,17 @@ export const InvoiceCreatePage: React.FC = () => {
       setCatalogProducts((prev) => [...prev, saved]);
       handleAddFromCatalog(saved.id.toString());
       setQuickProductModal(false);
-      notifications.show({ title: "Producto Creado", message: `${saved.description} agregado a la factura`, color: "teal" });
+      notifications.show({
+        title: "Producto Creado",
+        message: `${saved.description} agregado a la factura`,
+        color: "teal",
+      });
     } catch (err: any) {
-      notifications.show({ title: "Error", message: err.message, color: "red" });
+      notifications.show({
+        title: "Error",
+        message: err.message,
+        color: "red",
+      });
     } finally {
       setQpSaving(false);
     }
@@ -358,42 +450,33 @@ export const InvoiceCreatePage: React.FC = () => {
     const prod = catalogProducts.find((p) => p.id.toString() === productId);
     if (!prod) return;
 
-    if (prod.has_detraction) {
-      setHasDetraction(true);
-      if (prod.detraction_code) setDetractionCode(prod.detraction_code);
-      if (prod.detraction_percent) setDetractionPercent(Number(prod.detraction_percent));
-      notifications.show({
-        title: "Detracción Automática",
-        message: `El producto ${prod.description} tiene detracción del ${prod.detraction_percent}%`,
-        color: "orange",
-      });
-    }
-
     const qty = 1;
-    const unitVal = Number(prod.unit_value);
-    const unitPrice = Number(prod.unit_price) || unitVal * 1.18;
-    const total = unitPrice * qty;
-    const igvAmt = (unitVal * 0.18) * qty;
+    const unitVal = Number(prod.unit_value) || 0;
+    const unitPrice = Number(prod.unit_price) || (unitVal > 0 ? Number((unitVal * 1.18).toFixed(4)) : 0);
+    const total = Number((unitPrice * qty).toFixed(2));
+    const igvAmt = Number((unitVal * 0.18 * qty).toFixed(2));
 
-    setItems([
-      ...items,
-      {
-        internal_code: prod.internal_code,
-        description: prod.description,
-        unit_code: prod.unit_code,
-        quantity: qty,
-        unit_value: unitVal,
-        unit_price: unitPrice,
-        igv_type: prod.igv_type,
-        igv_amount: igvAmt,
-        total: total,
-      },
-    ]);
+    const newItem = {
+      product_id: prod.id,
+      internal_code: prod.internal_code,
+      description: prod.description,
+      unit_code: prod.unit_code,
+      quantity: qty,
+      unit_value: unitVal,
+      unit_price: unitPrice,
+      igv_type: prod.igv_type || "10",
+      igv_amount: igvAmt,
+      total: total,
+    };
+
+    const newItems = [...items, newItem];
+    setItems(newItems);
+    syncDetractionFromItems(newItems);
   };
 
   // Agregar fila libre
   const handleAddBlankItem = () => {
-    setItems([
+    const newItems = [
       ...items,
       {
         description: "",
@@ -405,56 +488,155 @@ export const InvoiceCreatePage: React.FC = () => {
         igv_amount: 0,
         total: 0,
       },
-    ]);
+    ];
+    setItems(newItems);
   };
 
-  // Actualizar ítem
+  // Actualizar ítem (soporta modificar tanto unit_value como unit_price y sincronizarlos)
   const handleItemChange = (index: number, field: string, val: any) => {
     const updated = [...items];
     const item = { ...updated[index], [field]: val };
 
-    if (field === "quantity" || field === "unit_value") {
-      const q = Number(field === "quantity" ? val : item.quantity) || 0;
-      const v = Number(field === "unit_value" ? val : item.unit_value) || 0;
+    if (field === "unit_value") {
+      const q = Number(item.quantity) || 0;
+      const v = Number(val) || 0;
+      item.unit_value = v;
       item.unit_price = Number((v * 1.18).toFixed(4));
       item.igv_amount = Number((v * 0.18 * q).toFixed(2));
-      item.total = Number((v * 1.18 * q).toFixed(2));
+      item.total = Number((item.unit_price * q).toFixed(2));
+    } else if (field === "unit_price") {
+      const q = Number(item.quantity) || 0;
+      const p = Number(val) || 0;
+      item.unit_price = p;
+      item.unit_value = Number((p / 1.18).toFixed(4));
+      item.igv_amount = Number((item.unit_value * 0.18 * q).toFixed(2));
+      item.total = Number((p * q).toFixed(2));
+    } else if (field === "quantity") {
+      const q = Number(val) || 0;
+      const v = Number(item.unit_value) || 0;
+      const p = Number(item.unit_price) || (v * 1.18);
+      item.igv_amount = Number((v * 0.18 * q).toFixed(2));
+      item.total = Number((p * q).toFixed(2));
     }
 
     updated[index] = item;
     setItems(updated);
+    if (field === "description") {
+      syncDetractionFromItems(updated);
+    }
   };
 
   const handleRemoveItem = (index: number) => {
-    setItems(items.filter((_, i) => i !== index));
+    const newItems = items.filter((_, i) => i !== index);
+    setItems(newItems);
+    syncDetractionFromItems(newItems);
   };
 
-  // Cálculos de Totales
-  const subtotal = items.reduce((acc, it) => acc + (Number(it.unit_value) * Number(it.quantity) || 0), 0);
-  const totalIgv = items.reduce((acc, it) => acc + (Number(it.igv_amount) || 0), 0);
-  const total = items.reduce((acc, it) => acc + (Number(it.total) || 0), 0);
-  const detractionAmount = hasDetraction ? (total * (detractionPercent / 100)) : 0;
-  const netToPay = total - detractionAmount;
+  // Anticipos: agregar y eliminar
+  const handleAddPrepayment = () => {
+    setPrepayments([
+      ...prepayments,
+      {
+        type_code: typeCode === "01" ? "02" : "03", // 02=Factura anticipo, 03=Boleta anticipo
+        number: "",
+        total: 0,
+      },
+    ]);
+  };
+
+  const handlePrepaymentChange = (index: number, field: string, val: any) => {
+    const updated = [...prepayments];
+    updated[index] = { ...updated[index], [field]: val };
+    setPrepayments(updated);
+  };
+
+  const handleRemovePrepayment = (index: number) => {
+    setPrepayments(prepayments.filter((_, i) => i !== index));
+  };
+
+  // Cálculos de Totales y Anticipos
+  const subtotal = items.reduce(
+    (acc, it) => acc + (Number(it.unit_value) * Number(it.quantity) || 0),
+    0,
+  );
+  const totalIgv = items.reduce(
+    (acc, it) => acc + (Number(it.igv_amount) || 0),
+    0,
+  );
+  const grossTotal = items.reduce((acc, it) => acc + (Number(it.total) || 0), 0);
+  const totalPrepayments = hasPrepayments
+    ? prepayments.reduce((acc, p) => acc + (Number(p.total) || 0), 0)
+    : 0;
+  const total = Math.max(0, grossTotal - totalPrepayments);
+
+  const detractionAmount = hasDetraction
+    ? grossTotal * (detractionPercent / 100)
+    : 0;
+  const netToPay = Math.max(0, total - detractionAmount);
 
   // Emisión final
   const handleEmit = async () => {
     if (!activeCompany) return;
     if (!clientDocNumber || !clientName) {
-      notifications.show({ title: "Faltan datos", message: "Complete los datos del cliente", color: "red" });
+      notifications.show({
+        title: "Faltan datos",
+        message: "Complete los datos del cliente",
+        color: "red",
+      });
       return;
     }
+    // Validación de cliente según tipo de comprobante
+    if (typeCode === "01") {
+      const cleanRuc = clientDocNumber.trim();
+      if (clientDocType !== "6" || !/^(10|15|17|20)\d{9}$/.test(cleanRuc)) {
+        notifications.show({
+          title: "RUC Inválido para Factura",
+          message: "Para emitir una Factura Electrónica (01), el cliente debe tener RUC de 11 dígitos iniciando en 10, 15, 17 o 20.",
+          color: "red",
+        });
+        return;
+      }
+    }
     if (items.length === 0) {
-      notifications.show({ title: "Faltan ítems", message: "Debe agregar al menos un producto o servicio", color: "red" });
+      notifications.show({
+        title: "Faltan ítems",
+        message: "Debe agregar al menos un producto o servicio",
+        color: "red",
+      });
       return;
+    }
+    if (hasDetraction) {
+      if (!detractionAccount.trim()) {
+        notifications.show({
+          title: "Falta Cuenta Banco de la Nación",
+          message: "Debe ingresar el número de cuenta de detracciones del Banco de la Nación",
+          color: "red",
+        });
+        return;
+      }
+      if (detractionPercent <= 0) {
+        notifications.show({
+          title: "Porcentaje de detracción inválido",
+          message: "El porcentaje de detracción debe ser mayor a 0%",
+          color: "red",
+        });
+        return;
+      }
     }
 
     setIsSubmitting(true);
     try {
+      // Determinar tipo de operación SUNAT (1001 si tiene detracción)
+      let resolvedOpType = "0101";
+      if (hasDetraction && detractionAmount > 0) {
+        resolvedOpType = "1001";
+      }
+
       const payload: any = {
         company_id: activeCompany.id,
         is_test_mode: isTestMode,
         type_code: typeCode,
-        operation_type: "0101",
+        operation_type: resolvedOpType,
         series: series,
         issue_date: issueDate,
         currency: currency,
@@ -466,7 +648,9 @@ export const InvoiceCreatePage: React.FC = () => {
           address: clientAddress.trim() || undefined,
           email: clientEmail.trim() || undefined,
         },
-        seller_name: sellers.find((s) => s.id.toString() === selectedSellerId)?.full_name || undefined,
+        seller_name:
+          sellers.find((s) => s.id.toString() === selectedSellerId)
+            ?.full_name || undefined,
         employee_id: selectedSellerId ? Number(selectedSellerId) : undefined,
         items: items.map((it) => ({
           internal_code: it.internal_code || undefined,
@@ -500,6 +684,19 @@ export const InvoiceCreatePage: React.FC = () => {
         };
       }
 
+      if (hasPrepayments && prepayments.length > 0) {
+        const validPrepayments = prepayments
+          .filter((p) => p.number.trim() && Number(p.total) > 0)
+          .map((p) => ({
+            type_code: p.type_code,
+            number: p.number.trim().toUpperCase(),
+            total: Number(Number(p.total).toFixed(2)),
+          }));
+        if (validPrepayments.length > 0) {
+          payload.prepayments = validPrepayments;
+        }
+      }
+
       const res = await apiRequest("/documents", {
         method: "POST",
         body: JSON.stringify(payload),
@@ -529,17 +726,24 @@ export const InvoiceCreatePage: React.FC = () => {
       <Group justify="space-between" mb="md">
         <div>
           <Title order={2} style={{ color: "#0F172A", fontWeight: 700 }}>
-            Emitir {typeCode === "01" ? "Factura Electrónica" : "Boleta de Venta"}
+            Emitir{" "}
+            {typeCode === "01" ? "Factura Electrónica" : "Boleta de Venta"}
           </Title>
           <Text size="sm" c="dimmed">
-            Emisión de comprobante tributario • Empresa: <b>{activeCompany?.business_name}</b>
+            Emisión de comprobante tributario • Empresa:{" "}
+            <b>{activeCompany?.business_name}</b>
           </Text>
         </div>
-
       </Group>
 
       {/* Tarjeta 1: Datos Generales */}
-      <Paper withBorder p="md" radius="md" mb="md" style={{ backgroundColor: "#FFFFFF" }}>
+      <Paper
+        withBorder
+        p="md"
+        radius="md"
+        mb="md"
+        style={{ backgroundColor: "#FFFFFF" }}
+      >
         <Title order={5} mb="sm" style={{ color: "#0F172A" }}>
           1. Datos del Comprobante
         </Title>
@@ -550,8 +754,8 @@ export const InvoiceCreatePage: React.FC = () => {
               value={typeCode}
               onChange={(val) => val && setTypeCode(val)}
               data={[
-                { value: "01", label: "Factura Electrónica (01)" },
-                { value: "03", label: "Boleta de Venta (03)" },
+                { value: "01", label: "Factura Electrónica" },
+                { value: "03", label: "Boleta de Venta" },
               ]}
               allowDeselect={false}
             />
@@ -563,8 +767,16 @@ export const InvoiceCreatePage: React.FC = () => {
               onChange={(val) => val && setSeries(val.toUpperCase())}
               data={
                 availableSeries.length > 0
-                  ? availableSeries.map((s) => ({ value: s.series, label: `${s.series} (${s.description || 'Principal'})` }))
-                  : [{ value: typeCode === "01" ? "F001" : "B001", label: typeCode === "01" ? "F001" : "B001" }]
+                  ? availableSeries.map((s) => ({
+                      value: s.series,
+                      label: `${s.series}`, // (${s.description || "Principal"})
+                    }))
+                  : [
+                      {
+                        value: typeCode === "01" ? "F001" : "B001",
+                        label: typeCode === "01" ? "F001" : "B001",
+                      },
+                    ]
               }
               allowDeselect={false}
             />
@@ -622,7 +834,11 @@ export const InvoiceCreatePage: React.FC = () => {
         </Grid>
 
         {paymentMethod === "credito" && (
-          <Box mt="sm" p="xs" style={{ backgroundColor: "#F8FAFC", borderRadius: 8 }}>
+          <Box
+            mt="sm"
+            p="xs"
+            style={{ backgroundColor: "#F8FAFC", borderRadius: 8 }}
+          >
             <Group>
               <Text size="xs" fw={600}>
                 Vencimiento de la Cuota única al Crédito:
@@ -634,7 +850,8 @@ export const InvoiceCreatePage: React.FC = () => {
                 onChange={(e) => setCreditDueDate(e.currentTarget.value)}
               />
               <Text size="xs" c="dimmed">
-                Monto cuota: {currency === "PEN" ? "S/" : "$"} {total.toFixed(2)}
+                Monto cuota: {currency === "PEN" ? "S/" : "$"}{" "}
+                {total.toFixed(2)}
               </Text>
             </Group>
           </Box>
@@ -642,10 +859,16 @@ export const InvoiceCreatePage: React.FC = () => {
       </Paper>
 
       {/* Tarjeta 2: Cliente */}
-      <Paper withBorder p="md" radius="md" mb="md" style={{ backgroundColor: "#FFFFFF" }}>
+      <Paper
+        withBorder
+        p="md"
+        radius="md"
+        mb="md"
+        style={{ backgroundColor: "#FFFFFF" }}
+      >
         <Group justify="space-between" mb="sm">
           <Title order={5} style={{ color: "#0F172A" }}>
-            2. Datos del Cliente / Comprador
+            2. Datos del Cliente
           </Title>
           <Group>
             {catalogClients.length > 0 && (
@@ -692,7 +915,9 @@ export const InvoiceCreatePage: React.FC = () => {
           <Grid.Col span={{ base: 12, sm: 4 }}>
             <TextInput
               label="Número de Documento"
-              placeholder={clientDocType === "6" ? "Ej. 20100070970" : "Ej. 45892314"}
+              placeholder={
+                clientDocType === "6" ? "Ej. 20100070970" : "Ej. 45892314"
+              }
               value={clientDocNumber}
               onChange={(e) => setClientDocNumber(e.currentTarget.value)}
               rightSection={
@@ -740,7 +965,13 @@ export const InvoiceCreatePage: React.FC = () => {
       </Paper>
 
       {/* Tarjeta 3: Ítems del comprobante */}
-      <Paper withBorder p="md" radius="md" mb="md" style={{ backgroundColor: "#FFFFFF" }}>
+      <Paper
+        withBorder
+        p="md"
+        radius="md"
+        mb="md"
+        style={{ backgroundColor: "#FFFFFF" }}
+      >
         <Group justify="space-between" mb="sm">
           <div>
             <Title order={5} style={{ color: "#0F172A" }}>
@@ -789,11 +1020,16 @@ export const InvoiceCreatePage: React.FC = () => {
         <Table verticalSpacing="xs" striped withTableBorder withColumnBorders>
           <Table.Thead>
             <Table.Tr style={{ backgroundColor: "#F8FAFC" }}>
-              <Table.Th style={{ width: "40%" }}>Descripción del Ítem</Table.Th>
+              <Table.Th style={{ width: "34%" }}>Descripción del Ítem</Table.Th>
               <Table.Th style={{ width: "12%" }}>Unidad</Table.Th>
-              <Table.Th style={{ width: "12%" }}>Cantidad</Table.Th>
-              <Table.Th style={{ width: "16%" }}>Valor Unit. (Sin IGV)</Table.Th>
-              <Table.Th style={{ width: "16%" }}>Importe Total</Table.Th>
+              <Table.Th style={{ width: "10%" }}>Cantidad</Table.Th>
+              <Table.Th style={{ width: "14%" }}>
+                Valor Unit. (Sin IGV)
+              </Table.Th>
+              <Table.Th style={{ width: "14%" }}>
+                Precio Unit. (Con IGV)
+              </Table.Th>
+              <Table.Th style={{ width: "12%" }}>Importe Total</Table.Th>
               <Table.Th style={{ width: "4%" }}></Table.Th>
             </Table.Tr>
           </Table.Thead>
@@ -804,7 +1040,13 @@ export const InvoiceCreatePage: React.FC = () => {
                   <TextInput
                     size="xs"
                     value={item.description}
-                    onChange={(e) => handleItemChange(idx, "description", e.currentTarget.value)}
+                    onChange={(e) =>
+                      handleItemChange(
+                        idx,
+                        "description",
+                        e.currentTarget.value,
+                      )
+                    }
                     placeholder="Ej. Carbón Antracita en Grano"
                   />
                 </Table.Td>
@@ -834,14 +1076,24 @@ export const InvoiceCreatePage: React.FC = () => {
                   <NumberInput
                     size="xs"
                     min={0}
-                    decimalScale={2}
+                    decimalScale={4}
                     value={item.unit_value}
                     onChange={(val) => handleItemChange(idx, "unit_value", val)}
                   />
                 </Table.Td>
                 <Table.Td>
+                  <NumberInput
+                    size="xs"
+                    min={0}
+                    decimalScale={4}
+                    value={item.unit_price}
+                    onChange={(val) => handleItemChange(idx, "unit_price", val)}
+                  />
+                </Table.Td>
+                <Table.Td>
                   <Text size="xs" fw={700}>
-                    {currency === "PEN" ? "S/" : "$"} {Number(item.total).toFixed(2)}
+                    {currency === "PEN" ? "S/" : "$"}{" "}
+                    {Number(item.total).toFixed(2)}
                   </Text>
                 </Table.Td>
                 <Table.Td>
@@ -861,29 +1113,171 @@ export const InvoiceCreatePage: React.FC = () => {
         </Table>
       </Paper>
 
-      {/* Tarjeta 4: Detracción Minera y Carbón */}
-      <Paper withBorder p="md" radius="md" mb="md" style={{ backgroundColor: "#FFFFFF" }}>
+      {/* Tarjeta 4: Anticipos Aplicados */}
+      <Paper
+        withBorder
+        p="md"
+        radius="md"
+        mb="md"
+        style={{ backgroundColor: "#FFFFFF" }}
+      >
+        <Group justify="space-between" mb="xs">
+          <div>
+            <Group gap="xs">
+              <ReceiptText size={20} color="#0284C7" />
+              <Title order={5} style={{ color: "#0F172A" }}>
+                4. Anticipos Aplicados
+              </Title>
+            </Group>
+            <Text size="xs" c="dimmed">
+              Deduce montos cobrados previamente mediante facturas o boletas de anticipo emitidas al cliente
+            </Text>
+          </div>
+          <Switch
+            checked={hasPrepayments}
+            onChange={(e) => {
+              const checked = e.currentTarget.checked;
+              setHasPrepayments(checked);
+              if (checked && prepayments.length === 0) {
+                handleAddPrepayment();
+              }
+            }}
+            label="Aplica Anticipos"
+            color="blue"
+          />
+        </Group>
+
+        {hasPrepayments && (
+          <Box mt="sm">
+            <Table verticalSpacing="xs" striped withTableBorder withColumnBorders>
+              <Table.Thead>
+                <Table.Tr style={{ backgroundColor: "#F0F9FF" }}>
+                  <Table.Th style={{ width: "25%" }}>Tipo Comprobante Anticipo</Table.Th>
+                  <Table.Th style={{ width: "40%" }}>Serie y Correlativo (Ej. F001-00000012)</Table.Th>
+                  <Table.Th style={{ width: "25%" }}>Monto Anticipado ({currency === "PEN" ? "S/" : "$"})</Table.Th>
+                  <Table.Th style={{ width: "10%", textAlign: "center" }}></Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {prepayments.map((prep, pIdx) => (
+                  <Table.Tr key={pIdx}>
+                    <Table.Td>
+                      <Select
+                        size="xs"
+                        value={prep.type_code}
+                        onChange={(val) => handlePrepaymentChange(pIdx, "type_code", val || "02")}
+                        data={[
+                          { value: "02", label: "02 - Factura Anticipo" },
+                          { value: "03", label: "03 - Boleta Anticipo" },
+                        ]}
+                        allowDeselect={false}
+                      />
+                    </Table.Td>
+                    <Table.Td>
+                      <TextInput
+                        size="xs"
+                        placeholder="F001-00000045"
+                        value={prep.number}
+                        onChange={(e) => handlePrepaymentChange(pIdx, "number", e.currentTarget.value.toUpperCase())}
+                      />
+                    </Table.Td>
+                    <Table.Td>
+                      <NumberInput
+                        size="xs"
+                        min={0}
+                        decimalScale={2}
+                        value={prep.total}
+                        onChange={(val) => handlePrepaymentChange(pIdx, "total", Number(val) || 0)}
+                      />
+                    </Table.Td>
+                    <Table.Td style={{ textAlign: "center" }}>
+                      <ActionIcon
+                        color="red"
+                        variant="subtle"
+                        size="sm"
+                        onClick={() => handleRemovePrepayment(pIdx)}
+                        disabled={prepayments.length === 1}
+                      >
+                        <Trash2 size={14} />
+                      </ActionIcon>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+            <Group justify="space-between" mt="xs">
+              <Button
+                size="xs"
+                variant="subtle"
+                color="blue"
+                leftSection={<Plus size={14} />}
+                onClick={handleAddPrepayment}
+              >
+                Agregar otro anticipo
+              </Button>
+              <Text size="xs" fw={700} c="blue.8">
+                Total Anticipos: {currency === "PEN" ? "S/" : "$"} {totalPrepayments.toFixed(2)}
+              </Text>
+            </Group>
+          </Box>
+        )}
+      </Paper>
+
+      {/* Tarjeta 5: Detracción Minera y Carbón */}
+      <Paper
+        withBorder
+        p="md"
+        radius="md"
+        mb="md"
+        style={{ backgroundColor: "#FFFFFF" }}
+      >
         <Group justify="space-between" mb="xs">
           <div>
             <Group gap="xs">
               <Title order={5} style={{ color: "#0F172A" }}>
-                4. Régimen de Detracción
+                5. Régimen de Detracción
               </Title>
             </Group>
             <Text size="xs" c="dimmed">
-              Obligatorio en ventas de carbón y recursos minerales que superen S/ 700.00 (Tasa habitual 10%)
+              Obligatorio en ventas de carbón y recursos minerales que superen
+              S/ 700.00 (Tasa habitual 10%)
             </Text>
           </div>
           <Switch
             checked={hasDetraction}
-            onChange={(e) => setHasDetraction(e.currentTarget.checked)}
+            onChange={(e) => {
+              const checked = e.currentTarget.checked;
+              setHasDetraction(checked);
+              if (checked) {
+                // Autoelegir código 034 por defecto
+                const targetCode = "034";
+                setDetractionCode(targetCode);
+                const svc = detractionServices.find(
+                  (s) => s.code === targetCode,
+                );
+                if (svc) {
+                  setDetractionPercent(
+                    Number(svc.default_percent ?? svc.percent ?? 10),
+                  );
+                } else {
+                  setDetractionPercent(10);
+                }
+              }
+            }}
             label="Aplica Detracción"
             color="orange"
           />
         </Group>
 
         {hasDetraction && (
-          <Box p="sm" style={{ backgroundColor: "#FFFBEB", borderRadius: 8, border: "1px solid #FDE68A" }}>
+          <Box
+            p="sm"
+            style={{
+              backgroundColor: "#FFFBEB",
+              borderRadius: 8,
+              border: "1px solid #FDE68A",
+            }}
+          >
             <Grid>
               <Grid.Col span={{ base: 12, sm: 5 }}>
                 <Select
@@ -892,9 +1286,17 @@ export const InvoiceCreatePage: React.FC = () => {
                   onChange={(val) => {
                     if (val) {
                       setDetractionCode(val);
-                      const svc = detractionServices.find((s) => s.code === val);
+                      const svc = detractionServices.find(
+                        (s) => s.code === val,
+                      );
                       if (svc) {
-                        setDetractionPercent(svc.default_percent || svc.percent || 10);
+                        setDetractionPercent(
+                          Number(svc.default_percent ?? svc.percent ?? 10),
+                        );
+                      } else if (val === "027") {
+                        setDetractionPercent(4);
+                      } else {
+                        setDetractionPercent(10);
                       }
                     }
                   }}
@@ -905,11 +1307,15 @@ export const InvoiceCreatePage: React.FC = () => {
                           label: `${s.code} - ${s.name || s.description} (${s.default_percent || s.percent || 0}%)`,
                         }))
                       : [
-                          { value: "023", label: "023 - Leche (4%)" },
-                          { value: "025", label: "025 - Fabricación de bienes por encargo (10%)" },
-                          { value: "039", label: "039 - Minerales no metálicos (Carbón y derivados) (10%)" },
-                          { value: "027", label: "027 - Servicio de transporte de carga (4%)" },
-                          { value: "022", label: "022 - Otros servicios empresariales (12%)" },
+                          {
+                            value: "034",
+                            label:
+                              "034 - Minerales metálicos no auríferos (10%)",
+                          },
+                          {
+                            value: "027",
+                            label: "027 - Servicio de transporte de carga (4%)",
+                          },
                         ]
                   }
                   searchable
@@ -922,17 +1328,10 @@ export const InvoiceCreatePage: React.FC = () => {
                   placeholder="Seleccione cuenta BN..."
                   value={detractionAccount}
                   onChange={(val) => setDetractionAccount(val || "")}
-                  data={
-                    [
-                      ...(activeCompany?.bn_account
-                        ? [{ value: activeCompany.bn_account, label: `${activeCompany.bn_account} (Principal BN)` }]
-                        : []),
-                      ...availableBnAccounts.map((a: any) => ({
-                        value: a.account_number,
-                        label: `${a.account_number} (${a.alias || a.bank?.name || "Banco de la Nación"})`,
-                      })),
-                    ].filter((item, idx, self) => idx === self.findIndex((t) => t.value === item.value))
-                  }
+                  data={availableBnAccounts.map((a: any) => ({
+                    value: a.account_number,
+                    label: `${a.account_number} (${a.alias || a.bank?.name || "Banco de la Nación"})`,
+                  }))}
                   searchable
                   allowDeselect={false}
                 />
@@ -960,16 +1359,31 @@ export const InvoiceCreatePage: React.FC = () => {
       </Paper>
 
       {/* Resumen de Totales y Botón de Emisión */}
-      <Paper withBorder p="md" radius="md" style={{ backgroundColor: "#FFFFFF" }}>
+      <Paper
+        withBorder
+        p="md"
+        radius="md"
+        style={{ backgroundColor: "#FFFFFF" }}
+      >
         <Grid justify="space-between" align="center">
           <Grid.Col span={{ base: 12, md: 6 }}>
             {isTestMode ? (
-              <Alert icon={<AlertTriangle size={18} />} color="yellow" title="Modo de Prueba Activado">
-                Este comprobante será simulado sin valor fiscal para que compruebes el funcionamiento.
+              <Alert
+                icon={<AlertTriangle size={18} />}
+                color="yellow"
+                title="Modo de Prueba Activado"
+              >
+                Este comprobante será simulado sin valor fiscal para que
+                compruebes el funcionamiento.
               </Alert>
             ) : (
-              <Alert icon={<Info size={18} />} color="teal" title="Emisión Real a SUNAT">
-                Este comprobante será firmado digitalmente y enviado a los servidores oficiales de SUNAT.
+              <Alert
+                icon={<Info size={18} />}
+                color="teal"
+                title="Emisión Real a SUNAT"
+              >
+                Este comprobante será firmado digitalmente y enviado a los
+                servidores oficiales de SUNAT.
               </Alert>
             )}
           </Grid.Col>
@@ -992,6 +1406,16 @@ export const InvoiceCreatePage: React.FC = () => {
                   {currency === "PEN" ? "S/" : "$"} {totalIgv.toFixed(2)}
                 </Text>
               </Group>
+              {hasPrepayments && totalPrepayments > 0 && (
+                <Group justify="flex-end" gap="xl" mb={4}>
+                  <Text size="sm" c="blue.8">
+                    Anticipos deducidos:
+                  </Text>
+                  <Text size="sm" fw={600} c="blue.8" style={{ width: 120 }}>
+                    - {currency === "PEN" ? "S/" : "$"} {totalPrepayments.toFixed(2)}
+                  </Text>
+                </Group>
+              )}
               {hasDetraction && (
                 <Group justify="flex-end" gap="xl" mb={4}>
                   <Text size="sm" c="orange.8">
@@ -1012,7 +1436,8 @@ export const InvoiceCreatePage: React.FC = () => {
 
               {hasDetraction && (
                 <Text size="xs" c="dimmed" mb="md">
-                  Neto a pagar en cuenta comercial: <b>S/ {netToPay.toFixed(2)}</b>
+                  Neto a pagar en cuenta comercial:{" "}
+                  <b>S/ {netToPay.toFixed(2)}</b>
                 </Text>
               )}
 
@@ -1042,13 +1467,24 @@ export const InvoiceCreatePage: React.FC = () => {
           <Text size="sm" mb="xs">
             ¿Está seguro de emitir el comprobante con los siguientes datos?
           </Text>
-          <Box p="sm" mb="md" style={{ backgroundColor: "#F8FAFC", borderRadius: 8 }}>
+          <Box
+            p="sm"
+            mb="md"
+            style={{ backgroundColor: "#F8FAFC", borderRadius: 8 }}
+          >
             <Text size="xs">
-              <b>Tipo:</b> {typeCode === "01" ? "Factura Electrónica" : "Boleta de Venta"} ({series})
+              <b>Tipo:</b>{" "}
+              {typeCode === "01" ? "Factura Electrónica" : "Boleta de Venta"} (
+              {series})
             </Text>
             <Text size="xs">
               <b>Cliente:</b> {clientName} ({clientDocNumber})
             </Text>
+            {hasPrepayments && totalPrepayments > 0 && (
+              <Text size="xs" c="blue.8">
+                <b>Anticipos Deducidos:</b> {currency === "PEN" ? "S/" : "$"} {totalPrepayments.toFixed(2)}
+              </Text>
+            )}
             <Text size="xs">
               <b>Total:</b> {currency === "PEN" ? "S/" : "$"} {total.toFixed(2)}
             </Text>
@@ -1058,7 +1494,8 @@ export const InvoiceCreatePage: React.FC = () => {
               </Text>
             )}
             <Text size="xs" c={isTestMode ? "orange.8" : "teal.8"}>
-              <b>Modo:</b> {isTestMode ? "Modo Prueba (Simulado)" : "Producción Real SUNAT"}
+              <b>Modo:</b>{" "}
+              {isTestMode ? "Modo Prueba (Simulado)" : "Producción Real SUNAT"}
             </Text>
           </Box>
 
@@ -1122,19 +1559,29 @@ export const InvoiceCreatePage: React.FC = () => {
                     setQcSearching(true);
                     try {
                       if (qcDocType === "6") {
-                        const r = await apiRequest(`/services/ruc/${qcDocNumber.trim()}`);
+                        const r = await apiRequest(
+                          `/services/ruc/${qcDocNumber.trim()}`,
+                        );
                         if (r.data) {
                           setQcName(r.data.razon_social || "");
                           setQcAddress(r.data.direccion || "");
                         }
                       } else {
-                        const r = await apiRequest(`/services/dni/${qcDocNumber.trim()}`);
+                        const r = await apiRequest(
+                          `/services/dni/${qcDocNumber.trim()}`,
+                        );
                         if (r.data) {
-                          setQcName(`${r.data.nombres || ""} ${r.data.apellido_paterno || ""}`.trim());
+                          setQcName(
+                            `${r.data.nombres || ""} ${r.data.apellido_paterno || ""}`.trim(),
+                          );
                         }
                       }
                     } catch {
-                      notifications.show({ title: "No encontrado", message: "Complete los datos manualmente", color: "orange" });
+                      notifications.show({
+                        title: "No encontrado",
+                        message: "Complete los datos manualmente",
+                        color: "orange",
+                      });
                     } finally {
                       setQcSearching(false);
                     }
@@ -1171,10 +1618,19 @@ export const InvoiceCreatePage: React.FC = () => {
             mb="md"
           />
           <Group justify="flex-end">
-            <Button size="xs" variant="default" onClick={() => setQuickClientModal(false)}>
+            <Button
+              size="xs"
+              variant="default"
+              onClick={() => setQuickClientModal(false)}
+            >
               Cancelar
             </Button>
-            <Button size="xs" color="blue" loading={qcSaving} onClick={handleQuickClientSave}>
+            <Button
+              size="xs"
+              color="blue"
+              loading={qcSaving}
+              onClick={handleQuickClientSave}
+            >
               Guardar y Usar
             </Button>
           </Group>
@@ -1252,7 +1708,13 @@ export const InvoiceCreatePage: React.FC = () => {
               }}
             />
           </Group>
-          <Paper withBorder p="xs" radius="md" mb="md" style={{ backgroundColor: "#F8FAFC" }}>
+          <Paper
+            withBorder
+            p="xs"
+            radius="md"
+            mb="md"
+            style={{ backgroundColor: "#F8FAFC" }}
+          >
             <Switch
               label="¿Sujeto a Detracción SUNAT?"
               size="xs"
@@ -1273,8 +1735,13 @@ export const InvoiceCreatePage: React.FC = () => {
                   value={qpDetractionCode}
                   onChange={(val) => {
                     setQpDetractionCode(val || "019");
-                    const found = detractionServices.find((s) => s.code === val);
-                    if (found) setQpDetractionPercent(found.default_percent || found.percent || 10);
+                    const found = detractionServices.find(
+                      (s) => s.code === val,
+                    );
+                    if (found)
+                      setQpDetractionPercent(
+                        found.default_percent || found.percent || 10,
+                      );
                   }}
                 />
                 <NumberInput
@@ -1287,10 +1754,19 @@ export const InvoiceCreatePage: React.FC = () => {
             )}
           </Paper>
           <Group justify="flex-end">
-            <Button size="xs" variant="default" onClick={() => setQuickProductModal(false)}>
+            <Button
+              size="xs"
+              variant="default"
+              onClick={() => setQuickProductModal(false)}
+            >
               Cancelar
             </Button>
-            <Button size="xs" color="indigo" loading={qpSaving} onClick={handleQuickProductSave}>
+            <Button
+              size="xs"
+              color="indigo"
+              loading={qpSaving}
+              onClick={handleQuickProductSave}
+            >
               Guardar y Agregar
             </Button>
           </Group>

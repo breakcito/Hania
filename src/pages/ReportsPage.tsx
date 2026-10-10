@@ -139,7 +139,7 @@ export const ReportsPage: React.FC = () => {
           </Title>
           <Text size="sm" c="dimmed">
             Exportación contable oficial y análisis operativo para{" "}
-            <strong>{activeCompany?.trademark_name || activeCompany?.business_name}</strong>
+            <strong>{activeCompany?.business_name}</strong>
           </Text>
         </div>
 

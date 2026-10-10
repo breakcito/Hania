@@ -27,6 +27,7 @@ import {
   Trash2,
   ShieldCheck,
   Building,
+  Edit,
 } from "lucide-react";
 import { apiRequest } from "../api/client";
 import { useApp } from "../context/AppContext";
@@ -37,8 +38,9 @@ export const BankAccountsPage: React.FC = () => {
   const [banks, setBanks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Modal Crear Cuenta
+  // Modal Crear / Editar Cuenta
   const [modalOpened, setModalOpened] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<any | null>(null);
   const [bankId, setBankId] = useState<string | null>(null);
   const [accountType, setAccountType] = useState<string>("corriente");
   const [currency, setCurrency] = useState<string>("PEN");
@@ -60,8 +62,8 @@ export const BankAccountsPage: React.FC = () => {
         apiRequest(`/bank-accounts?company_id=${activeCompany.id}`),
         apiRequest("/banks"),
       ]);
-      setAccounts(accsData);
-      setBanks(banksData);
+      setAccounts(accsData || []);
+      setBanks(banksData || []);
     } catch (err: any) {
       notifications.show({
         title: "Error al cargar",
@@ -77,7 +79,26 @@ export const BankAccountsPage: React.FC = () => {
     loadData();
   }, [activeCompany]);
 
-  const handleCreateAccount = async (e: React.FormEvent) => {
+  const handleOpenCreate = () => {
+    resetForm();
+    setEditingAccount(null);
+    setModalOpened(true);
+  };
+
+  const handleOpenEdit = (acc: any) => {
+    setEditingAccount(acc);
+    setBankId(acc.bank_id.toString());
+    setAccountType(acc.account_type);
+    setCurrency(acc.currency);
+    setAccountNumber(acc.account_number);
+    setCciNumber(acc.cci_number || "");
+    setAlias(acc.alias || "");
+    setIsDetraction(acc.is_detraction);
+    setIsDefault(acc.is_default);
+    setModalOpened(true);
+  };
+
+  const handleSaveAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeCompany || !bankId || !accountNumber.trim()) {
       notifications.show({
@@ -90,26 +111,39 @@ export const BankAccountsPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      await apiRequest("/bank-accounts", {
-        method: "POST",
-        body: JSON.stringify({
-          company_id: activeCompany.id,
-          bank_id: Number(bankId),
-          account_type: isDetraction ? "detraccion" : accountType,
-          currency: currency,
-          account_number: accountNumber.trim(),
-          cci_number: cciNumber.trim() || null,
-          alias: alias.trim() || null,
-          is_detraction: isDetraction,
-          is_default: isDefault,
-        }),
-      });
+      const payload = {
+        company_id: activeCompany.id,
+        bank_id: Number(bankId),
+        account_type: isDetraction ? "detraccion" : accountType,
+        currency: currency,
+        account_number: accountNumber.trim(),
+        cci_number: cciNumber.trim() || null,
+        alias: alias.trim() || null,
+        is_detraction: isDetraction,
+        is_default: isDefault,
+      };
 
-      notifications.show({
-        title: "Cuenta Registrada",
-        message: "La cuenta bancaria fue guardada exitosamente",
-        color: "teal",
-      });
+      if (editingAccount) {
+        await apiRequest(`/bank-accounts/${editingAccount.id}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+        notifications.show({
+          title: "Cuenta Actualizada",
+          message: "Los datos de la cuenta bancaria fueron modificados",
+          color: "teal",
+        });
+      } else {
+        await apiRequest("/bank-accounts", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        notifications.show({
+          title: "Cuenta Registrada",
+          message: "La cuenta bancaria fue guardada exitosamente",
+          color: "teal",
+        });
+      }
 
       setModalOpened(false);
       resetForm();
@@ -141,6 +175,7 @@ export const BankAccountsPage: React.FC = () => {
   };
 
   const resetForm = () => {
+    setEditingAccount(null);
     setBankId(null);
     setAccountType("corriente");
     setCurrency("PEN");
@@ -162,7 +197,7 @@ export const BankAccountsPage: React.FC = () => {
           </Title>
           <Text size="sm" c="dimmed">
             Administración de cuentas corrientes, de ahorros y detracciones para{" "}
-            <strong>{activeCompany?.trademark_name || activeCompany?.business_name}</strong>
+            <strong>{activeCompany?.business_name}</strong>
           </Text>
         </div>
 
@@ -170,7 +205,7 @@ export const BankAccountsPage: React.FC = () => {
           leftSection={<Plus size={16} />}
           color="indigo"
           style={{ backgroundColor: "#1E3A8A" }}
-          onClick={() => setModalOpened(true)}
+          onClick={handleOpenCreate}
         >
           Nueva Cuenta Bancaria
         </Button>
@@ -194,7 +229,7 @@ export const BankAccountsPage: React.FC = () => {
             <ShieldCheck size={20} color="#2563EB" />
           </Group>
           <Text size="xl" fw={700} style={{ fontFamily: "monospace" }}>
-            {detractionAccount?.account_number || activeCompany?.bn_account || "No configurada"}
+            {detractionAccount?.account_number || "No configurada"}
           </Text>
           <Text size="xs" c="dimmed" mt={4}>
             CCI: {detractionAccount?.cci_number || "Pendiente de registrar"}
@@ -291,7 +326,7 @@ export const BankAccountsPage: React.FC = () => {
                           {acc.bank?.name || `Banco ID ${acc.bank_id}`}
                         </Text>
                         <Text size="xs" c="dimmed">
-                          {acc.bank?.short_name || acc.bank?.code}
+                          {acc.bank?.code}
                         </Text>
                       </div>
                     </Group>
@@ -354,15 +389,26 @@ export const BankAccountsPage: React.FC = () => {
                     )}
                   </Table.Td>
                   <Table.Td style={{ textAlign: "right" }}>
-                    <Tooltip label="Eliminar cuenta">
-                      <ActionIcon
-                        color="red"
-                        variant="subtle"
-                        onClick={() => handleDeleteAccount(acc.id)}
-                      >
-                        <Trash2 size={16} />
-                      </ActionIcon>
-                    </Tooltip>
+                    <Group gap="xs" justify="flex-end">
+                      <Tooltip label="Editar cuenta">
+                        <ActionIcon
+                          color="blue"
+                          variant="subtle"
+                          onClick={() => handleOpenEdit(acc)}
+                        >
+                          <Edit size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                      <Tooltip label="Eliminar cuenta">
+                        <ActionIcon
+                          color="red"
+                          variant="subtle"
+                          onClick={() => handleDeleteAccount(acc.id)}
+                        >
+                          <Trash2 size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Group>
                   </Table.Td>
                 </Table.Tr>
               ))}
@@ -371,20 +417,22 @@ export const BankAccountsPage: React.FC = () => {
         )}
       </Paper>
 
-      {/* Modal Registrar Cuenta Bancaria */}
+      {/* Modal Registrar / Editar Cuenta Bancaria */}
       <Modal
         opened={modalOpened}
         onClose={() => setModalOpened(false)}
         title={
           <Group gap="xs">
             <Landmark size={20} color="#1E3A8A" />
-            <Text fw={700}>Registrar Nueva Cuenta Bancaria</Text>
+            <Text fw={700}>
+              {editingAccount ? "Editar Cuenta Bancaria" : "Registrar Nueva Cuenta Bancaria"}
+            </Text>
           </Group>
         }
         size="md"
         radius="md"
       >
-        <form onSubmit={handleCreateAccount}>
+        <form onSubmit={handleSaveAccount}>
           <Select
             label="Banco / Entidad Financiera"
             placeholder="Seleccione el banco"

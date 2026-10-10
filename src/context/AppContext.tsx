@@ -6,7 +6,6 @@ export interface Company {
   id: number;
   ruc: string;
   business_name: string;
-  trademark_name: string | null;
   address: string | null;
   ubigeo: string | null;
   department: string | null;
@@ -17,8 +16,8 @@ export interface Company {
   is_matrix: boolean;
   is_production: boolean;
   is_active: boolean;
-  bn_account?: string | null;
   detraction_percent_default?: number | null;
+  facturador_company_id?: string | null;
   factos_company_id?: string | null;
   email?: string | null;
   phone?: string | null;

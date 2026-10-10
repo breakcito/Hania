@@ -192,7 +192,14 @@ export const DespatchesListPage: React.FC = () => {
                   </Table.Td>
                   <Table.Td style={{ textAlign: "right" }}>
                     <Group gap="xs" justify="flex-end">
-                      {gre.pdf_url && (
+                      {gre.status === "pending" && (
+                        <Tooltip label="Guía en procesamiento ante SUNAT">
+                          <Badge size="xs" color="yellow" variant="light">
+                            Procesando
+                          </Badge>
+                        </Tooltip>
+                      )}
+                      {gre.pdf_url && gre.status !== "pending" && gre.status !== "failed" && (
                         <Tooltip label="Ver PDF">
                           <ActionIcon
                             component="a"
@@ -207,7 +214,7 @@ export const DespatchesListPage: React.FC = () => {
                           </ActionIcon>
                         </Tooltip>
                       )}
-                      {gre.xml_url && (
+                      {gre.xml_url && gre.status !== "pending" && gre.status !== "failed" && (
                         <Tooltip label="Descargar XML">
                           <ActionIcon
                             component="a"

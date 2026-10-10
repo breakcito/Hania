@@ -20,14 +20,13 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { Plus, Search, Trash2, Users, Building, ShieldCheck, Phone, Mail } from "lucide-react";
+import { Plus, Search, Trash2, Users, Building, ShieldCheck, Phone, Mail, Edit } from "lucide-react";
 import { apiRequest } from "../api/client";
-import { useApp } from "../context/AppContext";
 
 export const ClientsPage: React.FC = () => {
-  const { activeCompany } = useApp();
   const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingClient, setEditingClient] = useState<any | null>(null);
   const [clientToDelete, setClientToDelete] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -53,11 +52,10 @@ export const ClientsPage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
 
   const loadClients = async () => {
-    if (!activeCompany) return;
     setLoading(true);
     try {
-      const data = await apiRequest(`/clients?company_id=${activeCompany.id}`);
-      setClients(data);
+      const data = await apiRequest("/clients");
+      setClients(data || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -67,7 +65,32 @@ export const ClientsPage: React.FC = () => {
 
   useEffect(() => {
     loadClients();
-  }, [activeCompany]);
+  }, []);
+
+  const handleOpenCreate = () => {
+    resetForm();
+    setEditingClient(null);
+    setOpened(true);
+  };
+
+  const handleOpenEdit = (c: any) => {
+    setEditingClient(c);
+    setDocType(c.doc_type || "6");
+    setDocNumber(c.doc_number);
+    setName(c.name);
+    setAddress(c.address || "");
+    setUbigeo(c.ubigeo || "");
+    setDepartment(c.department || "");
+    setProvince(c.province || "");
+    setDistrict(c.district || "");
+    setEmail(c.email || "");
+    setPhone(c.phone || "");
+    setContactName(c.contact_name || "");
+    setCreditDaysDefault(c.credit_days_default || 0);
+    setConditionSunat(c.condition_sunat || "HABIDO");
+    setStateSunat(c.state_sunat || "ACTIVO");
+    setOpened(true);
+  };
 
   // Consulta en tiempo real de RUC o DNI
   const handleLookup = async () => {
@@ -111,34 +134,45 @@ export const ClientsPage: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (!docNumber.trim() || !name.trim() || !activeCompany) {
+    if (!docNumber.trim() || !name.trim()) {
       notifications.show({ title: "Atención", message: "Documento y razón social/nombre son requeridos", color: "orange" });
       return;
     }
     setIsSaving(true);
     try {
-      await apiRequest("/clients", {
-        method: "POST",
-        body: JSON.stringify({
-          company_id: activeCompany.id,
-          doc_type: docType,
-          doc_number: docNumber.trim(),
-          name: name.trim(),
-          address: address.trim() || undefined,
-          ubigeo: ubigeo.trim() || undefined,
-          department: department.trim() || undefined,
-          province: province.trim() || undefined,
-          district: district.trim() || undefined,
-          email: email.trim() || undefined,
-          phone: phone.trim() || undefined,
-          contact_name: contactName.trim() || undefined,
-          credit_days_default: creditDaysDefault,
-          condition_sunat: conditionSunat,
-          state_sunat: stateSunat,
-        }),
-      });
-      notifications.show({ title: "Cliente Guardado", message: "Registrado con éxito para facturación rápida", color: "teal" });
+      const payload = {
+        doc_type: docType,
+        doc_number: docNumber.trim(),
+        name: name.trim(),
+        address: address.trim() || undefined,
+        ubigeo: ubigeo.trim() || undefined,
+        department: department.trim() || undefined,
+        province: province.trim() || undefined,
+        district: district.trim() || undefined,
+        email: email.trim() || undefined,
+        phone: phone.trim() || undefined,
+        contact_name: contactName.trim() || undefined,
+        credit_days_default: creditDaysDefault,
+        condition_sunat: conditionSunat,
+        state_sunat: stateSunat,
+      };
+
+      if (editingClient) {
+        await apiRequest(`/clients/${editingClient.id}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+        notifications.show({ title: "Cliente Actualizado", message: "Datos del cliente actualizados con éxito", color: "teal" });
+      } else {
+        await apiRequest("/clients", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        notifications.show({ title: "Cliente Guardado", message: "Registrado con éxito para facturación rápida", color: "teal" });
+      }
+
       setOpened(false);
+      setEditingClient(null);
       resetForm();
       loadClients();
     } catch (err: any) {
@@ -168,6 +202,7 @@ export const ClientsPage: React.FC = () => {
   };
 
   const resetForm = () => {
+    setEditingClient(null);
     setDocType("6");
     setDocNumber("");
     setName("");
@@ -203,18 +238,14 @@ export const ClientsPage: React.FC = () => {
             Directorio de Clientes
           </Title>
           <Text size="sm" c="dimmed">
-            Maestro de clientes, datos tributarios SUNAT y condiciones comerciales • Empresa:{" "}
-            <strong>{activeCompany?.trademark_name || activeCompany?.business_name}</strong>
+            Maestro corporativo de clientes compartido entre todas las empresas • Datos tributarios SUNAT
           </Text>
         </div>
         <Button
           leftSection={<Plus size={16} />}
           color="indigo"
           style={{ backgroundColor: "#1E3A8A" }}
-          onClick={() => {
-            resetForm();
-            setOpened(true);
-          }}
+          onClick={handleOpenCreate}
         >
           Nuevo Cliente
         </Button>
@@ -346,7 +377,7 @@ export const ClientsPage: React.FC = () => {
                     )}
                   </Table.Td>
                   <Table.Td style={{ textAlign: "center" }}>
-                    {c.credit_days_default > 0 ? (
+                    {c.credit_days_default && c.credit_days_default > 0 ? (
                       <Badge color="cyan" size="sm" variant="light">
                         {c.credit_days_default} días
                       </Badge>
@@ -366,15 +397,26 @@ export const ClientsPage: React.FC = () => {
                     </Badge>
                   </Table.Td>
                   <Table.Td style={{ textAlign: "right" }}>
-                    <Tooltip label="Desactivar cliente">
-                      <ActionIcon
-                        color="red"
-                        variant="subtle"
-                        onClick={() => setClientToDelete(c)}
-                      >
-                        <Trash2 size={16} />
-                      </ActionIcon>
-                    </Tooltip>
+                    <Group gap="xs" justify="flex-end">
+                      <Tooltip label="Editar datos del cliente">
+                        <ActionIcon
+                          color="blue"
+                          variant="subtle"
+                          onClick={() => handleOpenEdit(c)}
+                        >
+                          <Edit size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                      <Tooltip label="Desactivar cliente">
+                        <ActionIcon
+                          color="red"
+                          variant="subtle"
+                          onClick={() => setClientToDelete(c)}
+                        >
+                          <Trash2 size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Group>
                   </Table.Td>
                 </Table.Tr>
               ))}
@@ -383,7 +425,7 @@ export const ClientsPage: React.FC = () => {
         )}
       </Paper>
 
-      {/* Modal Crear Cliente */}
+      {/* Modal Crear / Editar Cliente */}
       <Modal
         opened={opened}
         onClose={() => setOpened(false)}
@@ -391,7 +433,7 @@ export const ClientsPage: React.FC = () => {
           <Group>
             <Building size={20} color="#1E3A8A" />
             <Text fw={700} size="md">
-              Registrar Cliente
+              {editingClient ? "Editar Cliente" : "Registrar Cliente"}
             </Text>
           </Group>
         }

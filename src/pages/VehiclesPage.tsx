@@ -18,18 +18,17 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { Plus, Trash2, Truck, Search, ShieldCheck } from "lucide-react";
+import { Plus, Trash2, Truck, Search, ShieldCheck, Edit } from "lucide-react";
 import { apiRequest } from "../api/client";
-import { useApp } from "../context/AppContext";
 
 export const VehiclesPage: React.FC = () => {
-  const { activeCompany } = useApp();
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
   // Modal
   const [opened, setOpened] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState<any | null>(null);
   const [vehicleToDelete, setVehicleToDelete] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -42,11 +41,10 @@ export const VehiclesPage: React.FC = () => {
   const [mtcAuthorization, setMtcAuthorization] = useState("");
 
   const loadVehicles = async () => {
-    if (!activeCompany) return;
     setLoading(true);
     try {
-      const data = await apiRequest(`/vehicles?company_id=${activeCompany.id}`);
-      setVehicles(data);
+      const data = await apiRequest("/vehicles");
+      setVehicles(data || []);
     } catch (err) {
       console.error("Error loading vehicles:", err);
     } finally {
@@ -56,34 +54,64 @@ export const VehiclesPage: React.FC = () => {
 
   useEffect(() => {
     loadVehicles();
-  }, [activeCompany]);
+  }, []);
+
+  const handleOpenCreate = () => {
+    resetForm();
+    setEditingVehicle(null);
+    setOpened(true);
+  };
+
+  const handleOpenEdit = (v: any) => {
+    setEditingVehicle(v);
+    setPlateNumber(v.plate_number);
+    setSecondaryPlate(v.secondary_plate || "");
+    setBrand(v.brand || "");
+    setModel(v.model || "");
+    setMtcAuthorization(v.mtc_authorization || "");
+    setOpened(true);
+  };
 
   const handleSave = async () => {
-    if (!plateNumber.trim() || !activeCompany) {
+    if (!plateNumber.trim()) {
       notifications.show({ title: "Atención", message: "La placa del vehículo es obligatoria", color: "orange" });
       return;
     }
 
     setIsSaving(true);
     try {
-      await apiRequest("/vehicles", {
-        method: "POST",
-        body: JSON.stringify({
-          company_id: activeCompany.id,
-          plate_number: plateNumber.trim().toUpperCase(),
-          secondary_plate: secondaryPlate.trim().toUpperCase() || undefined,
-          brand: brand.trim() || undefined,
-          model: model.trim() || undefined,
-          mtc_authorization: mtcAuthorization.trim() || undefined,
-        }),
-      });
+      const payload = {
+        plate_number: plateNumber.trim().toUpperCase(),
+        secondary_plate: secondaryPlate.trim().toUpperCase() || undefined,
+        brand: brand.trim() || undefined,
+        model: model.trim() || undefined,
+        mtc_authorization: mtcAuthorization.trim() || undefined,
+      };
 
-      notifications.show({
-        title: "Vehículo Registrado",
-        message: `Vehículo con placa ${plateNumber.toUpperCase()} registrado con éxito`,
-        color: "teal",
-      });
+      if (editingVehicle) {
+        await apiRequest(`/vehicles/${editingVehicle.id}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+        notifications.show({
+          title: "Vehículo Actualizado",
+          message: `Vehículo con placa ${plateNumber.toUpperCase()} modificado con éxito`,
+          color: "teal",
+        });
+      } else {
+        await apiRequest("/vehicles", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        notifications.show({
+          title: "Vehículo Registrado",
+          message: `Vehículo con placa ${plateNumber.toUpperCase()} registrado con éxito`,
+          color: "teal",
+        });
+      }
+
       setOpened(false);
+      setEditingVehicle(null);
       resetForm();
       loadVehicles();
     } catch (err: any) {
@@ -113,6 +141,7 @@ export const VehiclesPage: React.FC = () => {
   };
 
   const resetForm = () => {
+    setEditingVehicle(null);
     setPlateNumber("");
     setSecondaryPlate("");
     setBrand("");
@@ -136,18 +165,14 @@ export const VehiclesPage: React.FC = () => {
             Flota Vehicular y Transporte
           </Title>
           <Text size="sm" c="dimmed">
-            Vehículos para Guías de Remisión Electrónica • Empresa:{" "}
-            <strong>{activeCompany?.trademark_name || activeCompany?.business_name}</strong>
+            Flota vehicular corporativa compartida entre todas las empresas para Guías de Remisión Electrónica
           </Text>
         </div>
         <Button
           leftSection={<Plus size={16} />}
           color="indigo"
           style={{ backgroundColor: "#1E3A8A" }}
-          onClick={() => {
-            resetForm();
-            setOpened(true);
-          }}
+          onClick={handleOpenCreate}
         >
           Nuevo Vehículo
         </Button>
@@ -268,15 +293,26 @@ export const VehiclesPage: React.FC = () => {
                     )}
                   </Table.Td>
                   <Table.Td style={{ textAlign: "right" }}>
-                    <Tooltip label="Desactivar vehículo">
-                      <ActionIcon
-                        color="red"
-                        variant="subtle"
-                        onClick={() => setVehicleToDelete(veh)}
-                      >
-                        <Trash2 size={16} />
-                      </ActionIcon>
-                    </Tooltip>
+                    <Group gap="xs" justify="flex-end">
+                      <Tooltip label="Editar vehículo">
+                        <ActionIcon
+                          color="blue"
+                          variant="subtle"
+                          onClick={() => handleOpenEdit(veh)}
+                        >
+                          <Edit size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                      <Tooltip label="Desactivar vehículo">
+                        <ActionIcon
+                          color="red"
+                          variant="subtle"
+                          onClick={() => setVehicleToDelete(veh)}
+                        >
+                          <Trash2 size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Group>
                   </Table.Td>
                 </Table.Tr>
               ))}
@@ -285,7 +321,7 @@ export const VehiclesPage: React.FC = () => {
         )}
       </Paper>
 
-      {/* Modal Crear Vehículo */}
+      {/* Modal Crear/Editar Vehículo */}
       <Modal
         opened={opened}
         onClose={() => setOpened(false)}
@@ -293,7 +329,7 @@ export const VehiclesPage: React.FC = () => {
           <Group>
             <Truck size={20} color="#1E3A8A" />
             <Text fw={700} size="md">
-              Registrar Vehículo de Carga
+              {editingVehicle ? "Editar Vehículo de Carga" : "Registrar Vehículo de Carga"}
             </Text>
           </Group>
         }

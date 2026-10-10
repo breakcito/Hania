@@ -67,15 +67,14 @@ export const DespatchCreatePage: React.FC = () => {
   const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
 
-  // Cargar clientes, trabajadores/choferes y vehículos de la empresa
+  // Cargar clientes, trabajadores/choferes y vehículos compartidos corporativamente
   useEffect(() => {
     async function loadData() {
-      if (!activeCompany) return;
       try {
         const [cList, eList, vList] = await Promise.all([
-          apiRequest(`/clients?company_id=${activeCompany.id}`),
-          apiRequest(`/employees?company_id=${activeCompany.id}`),
-          apiRequest(`/vehicles?company_id=${activeCompany.id}`),
+          apiRequest("/clients"),
+          apiRequest("/employees"),
+          apiRequest("/vehicles"),
         ]);
         setClients(cList || []);
         setDrivers(eList || []);
@@ -85,7 +84,7 @@ export const DespatchCreatePage: React.FC = () => {
       }
     }
     loadData();
-  }, [activeCompany]);
+  }, []);
 
   // Jalar destinatario
   const handleSelectRecipient = (clientId: string | null) => {
@@ -229,7 +228,7 @@ export const DespatchCreatePage: React.FC = () => {
           license: driverLicense.trim(),
         };
         payload.vehicle = {
-          plate_number: vehiclePlate.trim(),
+          plate: vehiclePlate.trim(),
           secondary_plate: secondaryPlate.trim() || undefined,
         };
       }
@@ -409,7 +408,7 @@ export const DespatchCreatePage: React.FC = () => {
                   searchable
                   data={drivers.map((d) => ({
                     value: d.id.toString(),
-                    label: `${d.full_name} (${d.job_title})`,
+                    label: `${d.full_name}${d.license_number ? ` (Lic. ${d.license_number})` : ""}`,
                   }))}
                   value={selectedDriverId}
                   onChange={handleSelectDriver}

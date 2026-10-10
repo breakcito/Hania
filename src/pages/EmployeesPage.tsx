@@ -36,7 +36,6 @@ import {
   Edit2,
 } from "lucide-react";
 import { apiRequest } from "../api/client";
-import { useApp } from "../context/AppContext";
 
 // Módulos disponibles para control de accesos del sistema
 export const AVAILABLE_MODULES = [
@@ -144,7 +143,6 @@ export const ROLE_PRESETS = [
 ];
 
 export const EmployeesPage: React.FC = () => {
-  const { activeCompany } = useApp();
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -176,12 +174,9 @@ export const EmployeesPage: React.FC = () => {
   );
 
   const loadEmployees = async () => {
-    if (!activeCompany) return;
     setLoading(true);
     try {
-      const data = await apiRequest(
-        `/employees?company_id=${activeCompany.id}`,
-      );
+      const data = await apiRequest("/employees");
       setEmployees(data);
     } catch (err) {
       console.error("Error loading employees:", err);
@@ -192,7 +187,7 @@ export const EmployeesPage: React.FC = () => {
 
   useEffect(() => {
     loadEmployees();
-  }, [activeCompany]);
+  }, []);
 
   // Manejo de cambio de preset de roles
   const handlePresetChange = (presetVal: string | null) => {
@@ -312,8 +307,7 @@ export const EmployeesPage: React.FC = () => {
     if (
       !documentNumber.trim() ||
       !firstName.trim() ||
-      !lastName.trim() ||
-      !activeCompany
+      !lastName.trim()
     ) {
       notifications.show({
         title: "Atención",
@@ -339,7 +333,6 @@ export const EmployeesPage: React.FC = () => {
     setIsSaving(true);
     try {
       const payload: any = {
-        company_id: activeCompany.id,
         document_type: documentType,
         document_number: documentNumber.trim(),
         first_name: firstName.trim(),
@@ -449,11 +442,7 @@ export const EmployeesPage: React.FC = () => {
             Trabajadores y Accesos
           </Title>
           <Text size="sm" c="dimmed">
-            Directorio de personal y control granular de accesos al sistema •
-            Empresa:{" "}
-            <strong>
-              {activeCompany?.trademark_name || activeCompany?.business_name}
-            </strong>
+            Directorio corporativo de personal compartido entre todas las empresas y control de accesos al sistema
           </Text>
         </div>
         <Button
