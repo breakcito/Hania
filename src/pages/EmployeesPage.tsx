@@ -40,56 +40,105 @@ import { useApp } from "../context/AppContext";
 
 // Módulos disponibles para control de accesos del sistema
 export const AVAILABLE_MODULES = [
-  { key: "dashboard", label: "Dashboard y Métricas", description: "Vista de KPIs y gráficos" },
-  { key: "issue_doc", label: "Emitir Factura / Boleta", description: "Emisión de comprobantes de pago" },
-  { key: "documents", label: "Historial de Comprobantes", description: "Listado, PDF, XML y CDR" },
-  { key: "notes", label: "Notas de Crédito / Débito", description: "Emisión y anulación tributaria" },
-  { key: "despatches", label: "Guías de Remisión (GRE)", description: "Traslado de mercancías" },
-  { key: "reports", label: "Centro de Reportes Excel", description: "Reportes oficiales de ventas" },
-  { key: "clients", label: "Clientes Frecuentes", description: "Directorio de compradores" },
-  { key: "products", label: "Catálogo de Productos", description: "Bienes y servicios" },
-  { key: "banks", label: "Cuentas Bancarias", description: "Cuentas corrientes y detracciones" },
-  { key: "series", label: "Series y Correlativos", description: "Configuración de numeración" },
-  { key: "employees", label: "Trabajadores y Accesos", description: "Personal y permisos del sistema" },
-  { key: "vehicles", label: "Vehículos y Flota", description: "Registro de transporte y MTC" },
-  { key: "companies", label: "Gestión de Empresas", description: "Datos fiscales y multiempresa" },
+  {
+    key: "dashboard",
+    label: "Dashboard y Métricas",
+    description: "Vista de KPIs y gráficos",
+  },
+  {
+    key: "issue_doc",
+    label: "Emitir Factura / Boleta",
+    description: "Emisión de comprobantes de pago",
+  },
+  {
+    key: "documents",
+    label: "Historial de Comprobantes",
+    description: "Listado, PDF, XML y CDR",
+  },
+  {
+    key: "notes",
+    label: "Notas de Crédito / Débito",
+    description: "Emisión y anulación tributaria",
+  },
+  {
+    key: "despatches",
+    label: "Guías de Remisión (GRE)",
+    description: "Traslado de mercancías",
+  },
+  {
+    key: "reports",
+    label: "Centro de Reportes Excel",
+    description: "Reportes oficiales de ventas",
+  },
+  {
+    key: "clients",
+    label: "Clientes Frecuentes",
+    description: "Directorio de compradores",
+  },
+  {
+    key: "products",
+    label: "Catálogo de Productos",
+    description: "Bienes y servicios",
+  },
+  {
+    key: "banks",
+    label: "Cuentas Bancarias",
+    description: "Cuentas corrientes y detracciones",
+  },
+  {
+    key: "series",
+    label: "Series y Correlativos",
+    description: "Configuración de numeración",
+  },
+  {
+    key: "employees",
+    label: "Trabajadores y Accesos",
+    description: "Personal y permisos del sistema",
+  },
+  {
+    key: "vehicles",
+    label: "Vehículos y Flota",
+    description: "Registro de transporte y MTC",
+  },
+  {
+    key: "companies",
+    label: "Gestión de Empresas",
+    description: "Datos fiscales y multiempresa",
+  },
 ];
 
 export const ROLE_PRESETS = [
   {
     value: "ADMIN",
-    label: "Administrador Total",
-    description: "Acceso total a todos los módulos y configuraciones",
+    label: "Administrador",
+    description: "Acceso a todos los módulos",
     modules: AVAILABLE_MODULES.map((m) => m.key),
   },
   {
-    value: "FACTURADOR",
-    label: "Facturación y Ventas",
-    description: "Emisión de comprobantes, notas, clientes y catálogo",
-    modules: ["documents", "issue_doc", "notes", "clients", "products"],
+    value: "CONTADOR",
+    label: "Contabilidad",
+    description: "Dashboard, comprobantes, guías y centro de reportes",
+    modules: [
+      "dashboard",
+      "documents",
+      "notes",
+      "despatches",
+      "reports",
+      "clients",
+      "products",
+      "issue_doc",
+    ],
   },
   {
     value: "LOGISTICA",
-    label: "Logística y Despacho",
+    label: "Logística",
     description: "Guías de Remisión (GRE), vehículos, productos y clientes",
     modules: ["despatches", "vehicles", "products", "clients"],
   },
   {
-    value: "CAJA",
-    label: "Caja y Cobranzas",
-    description: "Emisión/consulta de comprobantes, cuentas bancarias y clientes",
-    modules: ["documents", "issue_doc", "banks", "clients"],
-  },
-  {
-    value: "CONTADOR",
-    label: "Contabilidad y Auditoría",
-    description: "Dashboard, comprobantes, guías y centro de reportes Excel",
-    modules: ["dashboard", "documents", "notes", "despatches", "reports"],
-  },
-  {
     value: "CUSTOM",
     label: "Personalizado",
-    description: "Configuración manual a medida",
+    description: "Configuración manual",
     modules: [],
   },
 ];
@@ -130,7 +179,9 @@ export const EmployeesPage: React.FC = () => {
     if (!activeCompany) return;
     setLoading(true);
     try {
-      const data = await apiRequest(`/employees?company_id=${activeCompany.id}`);
+      const data = await apiRequest(
+        `/employees?company_id=${activeCompany.id}`,
+      );
       setEmployees(data);
     } catch (err) {
       console.error("Error loading employees:", err);
@@ -198,7 +249,9 @@ export const EmployeesPage: React.FC = () => {
           `${res.data.apellido_paterno || ""} ${res.data.apellido_materno || ""}`.trim(),
         );
         if (!username) {
-          const cleanName = (res.data.nombres || "").split(" ")[0].toLowerCase();
+          const cleanName = (res.data.nombres || "")
+            .split(" ")[0]
+            .toLowerCase();
           const cleanLast = (res.data.apellido_paterno || "").toLowerCase();
           setUsername(`${cleanName.slice(0, 1)}${cleanLast}`);
         }
@@ -209,7 +262,11 @@ export const EmployeesPage: React.FC = () => {
         });
       }
     } catch (err: any) {
-      notifications.show({ title: "No encontrado", message: err.message, color: "orange" });
+      notifications.show({
+        title: "No encontrado",
+        message: err.message,
+        color: "orange",
+      });
     } finally {
       setIsSearchingDoc(false);
     }
@@ -252,7 +309,12 @@ export const EmployeesPage: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (!documentNumber.trim() || !firstName.trim() || !lastName.trim() || !activeCompany) {
+    if (
+      !documentNumber.trim() ||
+      !firstName.trim() ||
+      !lastName.trim() ||
+      !activeCompany
+    ) {
       notifications.show({
         title: "Atención",
         message: "Complete los nombres y el documento de identidad",
@@ -261,7 +323,11 @@ export const EmployeesPage: React.FC = () => {
       return;
     }
 
-    if (createSystemAccess && !editingEmployee && (!username.trim() || !password)) {
+    if (
+      createSystemAccess &&
+      !editingEmployee &&
+      (!username.trim() || !password)
+    ) {
       notifications.show({
         title: "Atención",
         message: "Ingrese un nombre de usuario y contraseña para la cuenta",
@@ -314,7 +380,11 @@ export const EmployeesPage: React.FC = () => {
       resetForm();
       loadEmployees();
     } catch (err: any) {
-      notifications.show({ title: "Error", message: err.message, color: "red" });
+      notifications.show({
+        title: "Error",
+        message: err.message,
+        color: "red",
+      });
     } finally {
       setIsSaving(false);
     }
@@ -324,7 +394,9 @@ export const EmployeesPage: React.FC = () => {
     if (!employeeToDelete) return;
     setIsDeleting(true);
     try {
-      await apiRequest(`/employees/${employeeToDelete.id}`, { method: "DELETE" });
+      await apiRequest(`/employees/${employeeToDelete.id}`, {
+        method: "DELETE",
+      });
       notifications.show({
         title: "Trabajador Desactivado",
         message: `${employeeToDelete.full_name} fue desactivado lógicamente`,
@@ -333,7 +405,11 @@ export const EmployeesPage: React.FC = () => {
       setEmployeeToDelete(null);
       loadEmployees();
     } catch (err: any) {
-      notifications.show({ title: "Error", message: err.message, color: "red" });
+      notifications.show({
+        title: "Error",
+        message: err.message,
+        color: "red",
+      });
     } finally {
       setIsDeleting(false);
     }
@@ -373,8 +449,11 @@ export const EmployeesPage: React.FC = () => {
             Trabajadores y Accesos
           </Title>
           <Text size="sm" c="dimmed">
-            Directorio de personal y control granular de accesos al sistema • Empresa:{" "}
-            <strong>{activeCompany?.trademark_name || activeCompany?.business_name}</strong>
+            Directorio de personal y control granular de accesos al sistema •
+            Empresa:{" "}
+            <strong>
+              {activeCompany?.trademark_name || activeCompany?.business_name}
+            </strong>
           </Text>
         </div>
         <Button
@@ -389,7 +468,12 @@ export const EmployeesPage: React.FC = () => {
 
       {/* Tarjetas de Resumen */}
       <SimpleGrid cols={{ base: 1, sm: 3 }} mb="xl">
-        <Card withBorder padding="md" radius="md" style={{ backgroundColor: "#FFFFFF" }}>
+        <Card
+          withBorder
+          padding="md"
+          radius="md"
+          style={{ backgroundColor: "#FFFFFF" }}
+        >
           <Group justify="space-between" mb="xs">
             <Text size="xs" fw={700} c="dimmed">
               TOTAL DE PERSONAL
@@ -404,7 +488,12 @@ export const EmployeesPage: React.FC = () => {
           </Text>
         </Card>
 
-        <Card withBorder padding="md" radius="md" style={{ backgroundColor: "#FFFFFF" }}>
+        <Card
+          withBorder
+          padding="md"
+          radius="md"
+          style={{ backgroundColor: "#FFFFFF" }}
+        >
           <Group justify="space-between" mb="xs">
             <Text size="xs" fw={700} c="dimmed">
               CON ACCESO AL SISTEMA
@@ -419,7 +508,12 @@ export const EmployeesPage: React.FC = () => {
           </Text>
         </Card>
 
-        <Card withBorder padding="md" radius="md" style={{ backgroundColor: "#FFFFFF" }}>
+        <Card
+          withBorder
+          padding="md"
+          radius="md"
+          style={{ backgroundColor: "#FFFFFF" }}
+        >
           <Group justify="space-between" mb="xs">
             <Text size="xs" fw={700} c="dimmed">
               CONDUCTORES / LICENCIA MTC
@@ -436,7 +530,13 @@ export const EmployeesPage: React.FC = () => {
       </SimpleGrid>
 
       {/* Buscador Simple */}
-      <Paper withBorder p="md" radius="md" mb="lg" style={{ backgroundColor: "#FFFFFF" }}>
+      <Paper
+        withBorder
+        p="md"
+        radius="md"
+        mb="lg"
+        style={{ backgroundColor: "#FFFFFF" }}
+      >
         <TextInput
           placeholder="Buscar trabajador por nombre o número de documento..."
           leftSection={<Search size={16} />}
@@ -446,7 +546,12 @@ export const EmployeesPage: React.FC = () => {
       </Paper>
 
       {/* Tabla de Trabajadores */}
-      <Paper withBorder radius="md" p="md" style={{ backgroundColor: "#FFFFFF" }}>
+      <Paper
+        withBorder
+        radius="md"
+        p="md"
+        style={{ backgroundColor: "#FFFFFF" }}
+      >
         {loading ? (
           <Center p="xl">
             <Loader color="indigo" />
@@ -472,7 +577,8 @@ export const EmployeesPage: React.FC = () => {
                 <Table.Tr key={emp.id}>
                   <Table.Td>
                     <Badge variant="outline" color="gray" size="sm">
-                      {emp.document_type === "1" ? "DNI" : "CE"}: {emp.document_number}
+                      {emp.document_type === "1" ? "DNI" : "CE"}:{" "}
+                      {emp.document_number}
                     </Badge>
                   </Table.Td>
                   <Table.Td>
@@ -506,7 +612,8 @@ export const EmployeesPage: React.FC = () => {
                           @{emp.username}
                         </Badge>
                         <Badge color="indigo" variant="outline" size="sm">
-                          {ROLE_PRESETS.find((p) => p.value === emp.system_role)?.label ||
+                          {ROLE_PRESETS.find((p) => p.value === emp.system_role)
+                            ?.label ||
                             emp.system_role ||
                             "Personalizado"}
                         </Badge>
@@ -559,7 +666,9 @@ export const EmployeesPage: React.FC = () => {
           <Group>
             <UserCheck size={20} color="#1E3A8A" />
             <Text fw={700} size="md">
-              {editingEmployee ? "Editar Trabajador y Accesos" : "Registrar Nuevo Trabajador"}
+              {editingEmployee
+                ? "Editar Trabajador y Accesos"
+                : "Registrar Nuevo Trabajador"}
             </Text>
           </Group>
         }
@@ -634,7 +743,7 @@ export const EmployeesPage: React.FC = () => {
           </Group>
 
           <TextInput
-            label="Licencia de Conducir MTC (Opcional si es chofer)"
+            label="Licencia de Conducir MTC (Opcional)"
             placeholder="Ej. Q45892144 (Para Guías de Remisión)"
             value={licenseNumber}
             onChange={(e) => setLicenseNumber(e.currentTarget.value)}
@@ -642,7 +751,13 @@ export const EmployeesPage: React.FC = () => {
           />
 
           {/* Sección de Cuenta de Acceso y Permisos */}
-          <Paper withBorder p="md" radius="md" mb="md" style={{ backgroundColor: "#F8FAFC" }}>
+          <Paper
+            withBorder
+            p="md"
+            radius="md"
+            mb="md"
+            style={{ backgroundColor: "#F8FAFC" }}
+          >
             <Switch
               label="¿Habilitar cuenta de acceso al sistema para este trabajador?"
               checked={createSystemAccess}
@@ -665,7 +780,11 @@ export const EmployeesPage: React.FC = () => {
                     required
                   />
                   <TextInput
-                    label={editingEmployee ? "Nueva Contraseña (dejar en blanco para conservar)" : "Contraseña"}
+                    label={
+                      editingEmployee
+                        ? "Nueva Contraseña (dejar en blanco para conservar)"
+                        : "Contraseña"
+                    }
                     placeholder="••••••••"
                     type="password"
                     value={password}
@@ -674,11 +793,15 @@ export const EmployeesPage: React.FC = () => {
                   />
                 </Group>
 
-                <Divider my="sm" label="Perfil y Selección de Módulos" labelPosition="center" />
+                <Divider
+                  my="sm"
+                  label="Perfil y Selección de Módulos"
+                  labelPosition="center"
+                />
 
                 {/* Selector de Presets */}
                 <Select
-                  label="Perfil Predefinido (Preset)"
+                  label="Permisos"
                   description="Selecciona un perfil rápido o personaliza los módulos abajo"
                   data={ROLE_PRESETS.map((p) => ({
                     value: p.value,
@@ -692,7 +815,8 @@ export const EmployeesPage: React.FC = () => {
                 {/* Acciones de selección rápida */}
                 <Group justify="space-between" mb="xs">
                   <Text size="xs" fw={700} c="dimmed">
-                    MÓDULOS CON ACCESO PERMITIDO ({selectedModules.length} de {AVAILABLE_MODULES.length})
+                    MÓDULOS CON ACCESO PERMITIDO ({selectedModules.length} de{" "}
+                    {AVAILABLE_MODULES.length})
                   </Text>
                   <Group gap="xs">
                     <Button
@@ -716,7 +840,12 @@ export const EmployeesPage: React.FC = () => {
                 </Group>
 
                 {/* Cuadrícula de checkboxes de módulos */}
-                <Paper withBorder p="sm" radius="sm" style={{ backgroundColor: "#FFFFFF" }}>
+                <Paper
+                  withBorder
+                  p="sm"
+                  radius="sm"
+                  style={{ backgroundColor: "#FFFFFF" }}
+                >
                   <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
                     {AVAILABLE_MODULES.map((mod) => {
                       const isChecked = selectedModules.includes(mod.key);
@@ -734,7 +863,9 @@ export const EmployeesPage: React.FC = () => {
                             </div>
                           }
                           checked={isChecked}
-                          onChange={(e) => handleToggleModule(mod.key, e.currentTarget.checked)}
+                          onChange={(e) =>
+                            handleToggleModule(mod.key, e.currentTarget.checked)
+                          }
                           color="indigo"
                         />
                       );
@@ -770,14 +901,18 @@ export const EmployeesPage: React.FC = () => {
       >
         <Text size="sm" mb="lg">
           ¿Está seguro de desactivar al colaborador{" "}
-          <strong>{employeeToDelete?.full_name}</strong>? Se conservarán sus registros históricos en
-          comprobantes y guías.
+          <strong>{employeeToDelete?.full_name}</strong>? Se conservarán sus
+          registros históricos en comprobantes y guías.
         </Text>
         <Group justify="flex-end">
           <Button variant="default" onClick={() => setEmployeeToDelete(null)}>
             Cancelar
           </Button>
-          <Button color="red" loading={isDeleting} onClick={handleConfirmDelete}>
+          <Button
+            color="red"
+            loading={isDeleting}
+            onClick={handleConfirmDelete}
+          >
             Desactivar
           </Button>
         </Group>

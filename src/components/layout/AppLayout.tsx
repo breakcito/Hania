@@ -68,20 +68,60 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({
       icon: FilePlus,
       key: "issue_doc",
     },
-    { label: "Guías de Remisión", path: "/guias-remision", icon: Truck, key: "despatches" },
+    {
+      label: "Guías de Remisión",
+      path: "/guias-remision",
+      icon: Truck,
+      key: "despatches",
+    },
     {
       label: "Notas de Crédito / Débito",
       path: "/notas-credito-debito",
       icon: FileDiff,
       key: "notes",
     },
-    { label: "Centro de Reportes Excel", path: "/reportes", icon: BarChart3, key: "reports" },
-    { label: "Cuentas Bancarias", path: "/cuentas-bancarias", icon: Landmark, key: "banks" },
-    { label: "Series y Correlativos", path: "/series", icon: Hash, key: "series" },
-    { label: "Clientes Frecuentes", path: "/clientes", icon: Users, key: "clients" },
-    { label: "Catálogo de Productos", path: "/productos", icon: Package, key: "products" },
-    { label: "Trabajadores y Accesos", path: "/trabajadores", icon: UserCheck, key: "employees" },
-    { label: "Vehículos / Flota", path: "/vehiculos", icon: Truck, key: "vehicles" },
+    {
+      label: "Centro de Reportes Excel",
+      path: "/reportes",
+      icon: BarChart3,
+      key: "reports",
+    },
+    {
+      label: "Cuentas Bancarias",
+      path: "/cuentas-bancarias",
+      icon: Landmark,
+      key: "banks",
+    },
+    {
+      label: "Series y Correlativos",
+      path: "/series",
+      icon: Hash,
+      key: "series",
+    },
+    {
+      label: "Clientes Frecuentes",
+      path: "/clientes",
+      icon: Users,
+      key: "clients",
+    },
+    {
+      label: "Catálogo de Productos",
+      path: "/productos",
+      icon: Package,
+      key: "products",
+    },
+    {
+      label: "Trabajadores y Accesos",
+      path: "/trabajadores",
+      icon: UserCheck,
+      key: "employees",
+    },
+    {
+      label: "Vehículos / Flota",
+      path: "/vehiculos",
+      icon: Truck,
+      key: "vehicles",
+    },
     { label: "Empresas", path: "/empresas", icon: Building2, key: "companies" },
   ];
 
@@ -395,11 +435,8 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({
           p="xs"
           style={{ borderTop: "1px solid #E2E8F0", textAlign: "center" }}
         >
-          <Text size="11px" c="dimmed">
-            Factos API Conectado v1.0
-          </Text>
           <Text size="11px" fw={600} c="teal.7">
-            ● Facturación Homologada
+            Factos API v1.0
           </Text>
         </Box>
       </AppShell.Navbar>
