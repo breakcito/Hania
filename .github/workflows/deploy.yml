@@ -32,7 +32,7 @@ jobs:
         run: tar -czf hania-front-${{ github.sha }}.tar.gz dist index.html package.json
 
       - name: Generar checksum
-        run: sha256sum hania-front-${{ github.sha }}.tar.gz | awk '{print $1}' > hania-front-${{ github.sha }}.tar.gz.sha256
+        run: sha256sum hania-front-${{ github.sha }}.tar.gz > hania-front-${{ github.sha }}.tar.gz.sha256
 
       - name: Subir al VPS
         env:
